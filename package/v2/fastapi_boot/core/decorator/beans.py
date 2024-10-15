@@ -20,7 +20,7 @@ T = TypeVar("T")
 def Bean(
     value: Union[str, Callable[..., T]]
 ) -> Union[T,Callable[...,T]]:
-    """Bean, they must have a return type.
+    """Bean
     ## Example
     ```python
     # 1. default, autowired by type
