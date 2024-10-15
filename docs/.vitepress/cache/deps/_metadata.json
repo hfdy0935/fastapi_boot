@@ -1,0 +1,67 @@
+{
+  "hash": "30dfd095",
+  "configHash": "f8624aed",
+  "lockfileHash": "b3128441",
+  "browserHash": "f80a4737",
+  "optimized": {
+    "vue": {
+      "src": "../../../../node_modules/vue/dist/vue.runtime.esm-bundler.js",
+      "file": "vue.js",
+      "fileHash": "34c724a9",
+      "needsInterop": false
+    },
+    "vitepress > @vue/devtools-api": {
+      "src": "../../../../node_modules/@vue/devtools-api/dist/index.js",
+      "file": "vitepress___@vue_devtools-api.js",
+      "fileHash": "80b794e9",
+      "needsInterop": false
+    },
+    "vitepress > @vueuse/core": {
+      "src": "../../../../node_modules/@vueuse/core/index.mjs",
+      "file": "vitepress___@vueuse_core.js",
+      "fileHash": "ee007204",
+      "needsInterop": false
+    },
+    "vitepress > @vueuse/integrations/useFocusTrap": {
+      "src": "../../../../node_modules/@vueuse/integrations/useFocusTrap.mjs",
+      "file": "vitepress___@vueuse_integrations_useFocusTrap.js",
+      "fileHash": "9b795d43",
+      "needsInterop": false
+    },
+    "vitepress > mark.js/src/vanilla.js": {
+      "src": "../../../../node_modules/mark.js/src/vanilla.js",
+      "file": "vitepress___mark__js_src_vanilla__js.js",
+      "fileHash": "021586fb",
+      "needsInterop": false
+    },
+    "vitepress > minisearch": {
+      "src": "../../../../node_modules/minisearch/dist/es/index.js",
+      "file": "vitepress___minisearch.js",
+      "fileHash": "b53dad6e",
+      "needsInterop": false
+    },
+    "pinia": {
+      "src": "../../../../node_modules/pinia/dist/pinia.mjs",
+      "file": "pinia.js",
+      "fileHash": "5ddfe959",
+      "needsInterop": false
+    },
+    "pinia-plugin-persistedstate": {
+      "src": "../../../../node_modules/pinia-plugin-persistedstate/dist/index.mjs",
+      "file": "pinia-plugin-persistedstate.js",
+      "fileHash": "16eba94f",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-3W6WV7SO": {
+      "file": "chunk-3W6WV7SO.js"
+    },
+    "chunk-O3YQPVDG": {
+      "file": "chunk-O3YQPVDG.js"
+    },
+    "chunk-PAUCAATC": {
+      "file": "chunk-PAUCAATC.js"
+    }
+  }
+}
