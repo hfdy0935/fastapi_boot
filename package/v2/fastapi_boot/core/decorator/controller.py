@@ -6,7 +6,6 @@ from fastapi.datastructures import Default
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.utils import generate_unique_id
-from overrides import overrides
 from starlette.routing import BaseRoute
 from starlette.types import Lifespan, ASGIApp
 
@@ -76,7 +75,7 @@ class Controller(APIRouter):
             generate_unique_id_function=generate_unique_id_function,
         )
 
-    @overrides
+   
     def __call__(self, obj: Type[Any]):
         validate_controller(obj)
         wired_controller(self, obj)
