@@ -80,7 +80,13 @@ def validate_prefix(obj: Callable): ...
 def validate_bean(obj: Callable):
     """vaidate obj decorated by Bean.
     - （1）must be function；
+    - （2）must have return type hint；
     """
+    symbol = Symbol.from_obj(obj)
+    if not obj.__annotations__.get("return"):
+        raise BeanDecoratedFunctionHasNoReturnAnnotationException(
+            f'function decorated by Bean must have return type hint, position: "{symbol.pos}'
+        )
 
 
 @must_decorate_class("Component can only decorate class")

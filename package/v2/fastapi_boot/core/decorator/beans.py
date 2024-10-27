@@ -19,8 +19,8 @@ T = TypeVar("T")
 
 def Bean(
     value: Union[str, Callable[..., T]]
-) -> Union[T,Callable[...,T]]:
-    """Bean
+) -> Union[Callable[..., T], Callable[..., Callable[..., T]]]:
+    """Bean, they must have a return type.
     ## Example
     ```python
     # 1. default, autowired by type
@@ -37,39 +37,37 @@ def Bean(
     path = get_stack_path(1)
     if isfunction(value):
         validate_bean(value)
-        instance=value()
         def task():
             method:Callable=CommonVar.get_application(path).get_sv().add_bean
             item=BeanItem(
                 type=BeanType.BEAN,
                 symbol=Symbol.from_obj(value),
                 name=value.__name__,
-                constructor=type(instance),
+                constructor=value,
                 annotations=value.__annotations__,
-                value=instance
+                value=value()
             )
             method(item)
         handle_task(path,task)
-        return instance
+        return value
 
     assert isinstance(value, str)
 
     def wrapper(obj: Callable[..., T]):
         validate_bean(obj)
-        instance=obj()
         def task():
             method:Callable=CommonVar.get_application(path).get_sv().add_bean
             item=BeanItem(
                 type=BeanType.BEAN,
                 symbol=Symbol.from_obj(obj),
                 name=value,
-                constructor=type(instance),
+                constructor=obj,
                 annotations=obj.__annotations__,
-                value=instance
+                value=obj()
             )
             method(item)
         handle_task(path,task)
-        return instance
+        return obj
     return wrapper
 
 

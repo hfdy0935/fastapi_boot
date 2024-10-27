@@ -106,12 +106,11 @@ class ScannerApplication(Generic[T]):
         """
         res: List[BeanItem] = []
         # Bean
-        # for i in self.sv.get_bean_list():
-        #     if i.annotations.get("return") == bean_type_ and i.value:
-        #         res.append(i)
+        for i in self.sv.get_bean_list():
+            if i.annotations.get("return") == bean_type_ and i.value:
+                res.append(i)
         # 其他组件
         for i in [
-            *self.sv.get_bean_list(),
             *self.sv.get_service_list(),
             *self.sv.get_repository_list(),
             *self.sv.get_component_list(),

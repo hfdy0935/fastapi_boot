@@ -49,7 +49,7 @@ class BeanItem(BaseModel):
 
     type: Annotated[BeanType, Field(description="Component")]
     symbol: Annotated[Symbol, Field(description="bean的唯一标识")]
-    name: Annotated[Optional[str], Field(description="名")]
+    name: Annotated[str, Field(description="名")]
     constructor: Annotated[Any, Field(description="构造器")]
     annotations: Annotated[Dict[str, Any], Field(description="构造器参数")]
     value: Annotated[Optional[Any], Field(description="bean的值")] = None
