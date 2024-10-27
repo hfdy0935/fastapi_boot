@@ -1,24 +1,16 @@
 # fastapi_boot
 
-FastAPI项目启动器
+a fastapi project boot.\
+FastApiBoot provides some useful apis like SpringMVC. For example:
 
-特点：
-- 类视图，CBD(class based view)
-- 控制反转，IOC(Inversion of Controll)
-- 依赖注入，DI(Dependency Injection)
-- 自动扫描目录
-- 待探索...
+1. IOC collector decorator\
+   Controller, Service, Repository, Bean.
 
-APIs：
+2. mapping decorator\
+   Get, Post, Put et al.
 
-- 控制器相关装饰器：
-   1. `Controller`、`Prefix`
-   2. `Get`、`Post`、`Socket`...
-- 依赖注入
-   1. `Injectable`(`Service`、`Repository`、`Component`)、`Bean`
-   2. `Inject`(`Autowired`)
-- 有用的`hook`
-   1. `usedep`
-   2. 待扩展
+3. IOC injector function \
+   Autowired.
 
-
+4. hooks\
+   useRoutes, useRouter, useDeps.

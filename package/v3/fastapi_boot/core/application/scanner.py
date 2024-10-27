@@ -40,6 +40,7 @@ class ScannerApplication(Generic[T]):
         self.__setup_stack_path = setup_stack_path
 
     # ----------------------------------------------------- 遍历获取模块类列表 ---------------------------------------------------- #
+
     def _walk_module_path_list(self, scan_path: str, dot_prefix: str):
         """遍历扫描路径，获得项目下所有模块的路径类列表
 
@@ -61,18 +62,6 @@ class ScannerApplication(Generic[T]):
                     if mod_item.contains(i):
                         need_ignore_this_module = True
                         break
-                    # if i == mod_sys_abs_ln_path:
-                    #     need_ignore_this_module = True
-                    # else:
-                    # exclude_dot_path = i.split(".")
-                    # judge_dot_path = mod_pro_abs_dot_path.split(".")
-                    # contain = [
-                    #     1
-                    #     for t1, t2 in zip(exclude_dot_path, judge_dot_path)
-                    #     if t1 == t2
-                    # ]
-                    # if len(contain) == len(exclude_dot_path):
-                    #     need_ignore_this_module = True
                 if need_ignore_this_module:
                     continue
                 self.sv.add_mod_item(mod_item)
@@ -157,5 +146,6 @@ class ScannerApplication(Generic[T]):
         - 处理控制器
         """
         for ctrl in self.sv.get_controller_list():
+            # 只挂载CBV，FBV会自动挂载
             if isclass((obj := getattr(ctrl, ORI_OBJ))):
                 self._handle_endpoint_deps(obj, ctrl)

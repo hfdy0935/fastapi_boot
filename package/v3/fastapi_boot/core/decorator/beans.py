@@ -7,7 +7,7 @@ from typing import (
     no_type_check,
     overload,
 )
-from inspect import Parameter, isclass, isfunction
+from inspect import Parameter, isclass, isfunction, signature
 import typing
 
 from fastapi_boot.core.helper.inject import find_dependency
@@ -97,6 +97,8 @@ def Bean(value: str | Callable[..., T]) -> T | Callable[..., T]:
         validate_bean(value)
         # 执行@Bean装饰的函数得到的实例
         instance = do_bean_init(func=value)
+        # 如果写了返回值的类型，按照返回值类型添加适用于有泛型的情况；否则用type(instance)，没泛型
+        return_annotations = inspect.signature(value).return_annotation
 
         def task():
             # 之前已经判断了，这里肯定有
@@ -105,7 +107,7 @@ def Bean(value: str | Callable[..., T]) -> T | Callable[..., T]:
                 item = InjectItem(
                     symbol=Symbol.from_obj(value),
                     name=None,
-                    constructor=type(instance),
+                    constructor=return_annotations if return_annotations != inspect._empty else type(instance),
                     value=instance,
                 )
                 method(item)
@@ -118,6 +120,7 @@ def Bean(value: str | Callable[..., T]) -> T | Callable[..., T]:
     def wrapper(obj: Callable[..., T]):
         validate_bean(obj)
         instance = do_bean_init(obj)
+        return_annotations = inspect.signature(obj).return_annotation
 
         def task():
             if app := CommonVar.get_app(path):
@@ -125,7 +128,7 @@ def Bean(value: str | Callable[..., T]) -> T | Callable[..., T]:
                 item = InjectItem(
                     symbol=Symbol.from_obj(obj),
                     name=value,
-                    constructor=type(instance),
+                    constructor=return_annotations if return_annotations != inspect._empty else type(instance),
                     value=instance,
                 )
                 method(item)

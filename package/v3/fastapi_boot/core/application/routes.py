@@ -89,13 +89,11 @@ class RoutesApplication:
                 #   一个处理函数对应多个请求方法时，得到的id中的请求方法总是第一个请求方法
                 #   operation_id = f"{operation_id}_{list(route.methods)[0].lower()}"
                 #   return operation_id
-                params_dict = r.params.model_dump() if r.params else {}
+                params_dict = r.params.dict if r.params else {}
                 for method in r.methods:
                     # 每次只注册一个方法
                     params_dict.update(dict(methods=[method]))
-                    router.add_api_route(
-                        path=r.path, endpoint=r.endpoint, **params_dict
-                    )
+                    router.add_api_route(path=r.path, endpoint=r.endpoint, **params_dict)
 
     def register(self):
         if self.rv.need_pure_api:

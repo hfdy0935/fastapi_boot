@@ -39,6 +39,9 @@ def trans_methods(methods: list[RequestMethodEnum | str]) -> list[str]:
     return res
 
 
+# ----------------------------------------------------- 处理请求映射方法 ----------------------------------------------------- #
+
+
 def trans_endpoint(fn: Callable[..., T], dep: Callable):
     """处理路由映射方法的self"""
     old_params = list(inspect.signature(fn).parameters.values())
@@ -53,31 +56,52 @@ def trans_endpoint(fn: Callable[..., T], dep: Callable):
     setattr(fn, "__signature__", new_sign)
 
 
+# ------------------------------------------------------- 处理依赖 ------------------------------------------------------- #
+
+
+def __replace_init_params_to_depends(params_list: list[Parameter], k: str, v: Parameter, value: Any = None):
+    """
+    - 替换参数列表中对应参数为Depends(xxx)的依赖项，以便依赖注入，防止fastapi把它作为请求参数
+    - 参数类型都改成KEYWORD_ONLY，防止顺序错误
+    """
+    for idx, p in enumerate(params_list):
+        # 如果找到了就替换
+        if p.name == k:
+            new_parameter = Parameter(
+                name=k, kind=Parameter.KEYWORD_ONLY, default=Depends(lambda: v), annotation=v.annotation
+            )
+            params_list[idx] = new_parameter
+            return
+    # 没找到就直接加到最后
+    params_list.append(
+        Parameter(name=k, kind=Parameter.KEYWORD_ONLY, default=Depends(lambda: value), annotation=v.annotation)
+    )
+
+
 def trans_cls_deps(cls: type[Any], stack_path: str):
-    """转换__init__方法，添加usedep的依赖"""
+    """转换__init__方法，添加usedep的依赖，注入__init__形参的依赖"""
     # 1. 获得新的init方法签名
     old_init = cls.__init__
     old_sign = inspect.signature(cls)
     old_params = list(old_sign.parameters.values())[1:]
     new_params = [i for i in old_params if i.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL)]
-
     dep_names = []
     for name, value in cls.__dict__.items():
         hint = get_type_hints(cls).get(name)
         if getattr(value, DEP_PLACEHOLDER, None) == DepsPlaceholder:
             dep_names.append(name)
             new_params.append(Parameter(name, Parameter.KEYWORD_ONLY, annotation=hint, default=value))
-    new_sign = old_sign.replace(parameters=new_params)
 
     # 2. 如果原来有__init__，就处理参数
-    params = OrderedDict()
+    params = OrderedDict()  # （1）有key有v（20有k没v但有类型且找到对应的依赖了
     if cls.__dict__.get("__init__"):
         for k, v in signature(cls.__init__).parameters.items():
             if k == "self":  # 排除self
                 continue
             if (default_value := v.default) != inspect._empty:  # 有默认值
                 params.update({k: default_value})
-            elif (v.annotation) == inspect._empty:  # 无类型
+                __replace_init_params_to_depends(new_params, k, v)
+            elif (v.annotation) == inspect._empty:  # 无类型无默认值，这里直接报错，不作为请求参数了
                 raise InjectFailException(
                     f"{InjectFailException.msg}，参数 {k} 没有写类型也没有默认值，位置：{Symbol.from_obj(cls).pos}"
                 )
@@ -94,14 +118,19 @@ def trans_cls_deps(cls: type[Any], stack_path: str):
                         instance = find_dependency(Type, stack_path)
                 else:
                     instance = find_dependency(v.annotation, stack_path)
+                __replace_init_params_to_depends(new_params, k, v, instance)
                 params.update({k: instance})
+
+    # 新方法的签名
+    new_sign = old_sign.replace(parameters=new_params)
 
     # 3。 得到新的init
     def new_init(self, *args, **kwargs):
         for name in dep_names:
             value = kwargs.pop(name)
             setattr(self, name, value)
-        old_init(*[self, *params.values(), *args], **kwargs)
+        # 把新的参数中的dep_names取完之后，剩下的都是旧的参数，直接用params就行
+        old_init(*[self, *params.values()])
 
     setattr(cls, "__signature__", new_sign)
     setattr(cls, "__init__", new_init)

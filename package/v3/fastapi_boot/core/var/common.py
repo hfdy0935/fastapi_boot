@@ -18,7 +18,7 @@ class CommonVar:
             path (str): 路径
 
         Returns:
-            Optional[MainApplication]: 可能找不到
+            MainApplication|None: 主应用，可能找不到
         """
         for app in CommonVar.__application_list:
             if app.isin(path):
@@ -29,7 +29,7 @@ class CommonVar:
         """获取所有application
 
         Returns:
-            list[MainApplication]: 列表
+            list[MainApplication]: 主应用列表
         """
         return CommonVar.__application_list
 

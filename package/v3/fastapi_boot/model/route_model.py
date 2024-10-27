@@ -1,6 +1,6 @@
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 import inspect
-from pydantic import BaseModel, Field
 from enum import Enum
 from typing import (
     Annotated,
@@ -15,16 +15,16 @@ from fastapi.params import Depends
 from fastapi.responses import JSONResponse
 from fastapi.types import IncEx
 from fastapi.utils import generate_unique_id
-from pydantic import BaseModel, Field, validator
 
 
-class Symbol(BaseModel):
+@dataclass
+class Symbol:
     """
     - 路由的唯一标识
     """
 
-    file_path: Annotated[str, Field(description="文件在系统的的绝对路径")]
-    context_path: Annotated[str, Field(description="该对象的上下文路径")]
+    file_path: Annotated[str, "文件在系统的的绝对路径"]
+    context_path: Annotated[str, "该对象的上下文路径"]
 
     def equals(self, other: "Symbol") -> bool:
         """
@@ -78,55 +78,87 @@ class Symbol(BaseModel):
 T = TypeVar("T")
 
 
-class RouteRecordItemParams(BaseModel):
+class RouteRecordItemParams:
     """
     - 装饰器参数，除methods外等同于fastapi.APIRouter().router()的参数
     """
 
-    response_model: Annotated[Any, Field(description="响应类型")] = None
-    status_code: Annotated[int | None, Field(description="响应状态码")] = None
-    tags: Annotated[list[str | Enum] | None, Field(description="路由标签，自定义")] = None
-    # pydantic没有Depends的验证器，需要自定义验证器
-    dependencies: Annotated[Sequence[Any] | None, Field(description="依赖")] = None
-    summary: Annotated[str | None, Field(description="路由概要，自定义")] = None
-    description: Annotated[str | None, Field(description="路由描述，自定义")] = None
-    response_description: Annotated[str, Field(description="响应结果描述")] = "Successful Response"
-    responses: Annotated[dict[int | str, dict[str, Any]] | None, Field(description="响应")] = None
-    deprecated: Annotated[bool | None, Field(description="是否已弃用")] = None
-    operation_id: Annotated[str | None, Field(description="处理id")] = None
-    response_model_include: Annotated[IncEx | None, Field(description="包括的响应类型")] = None
-    response_model_exclude: Annotated[IncEx | None, Field(description="排除的响应类型")] = None
-    response_model_by_alias: Annotated[bool, Field(description="别名响应类型")] = True
-    response_model_exclude_unset: Annotated[bool, Field(description="是否排除非默认响应类型")] = False
-    response_model_exclude_defaults: Annotated[bool, Field(description="是否排除默认响应类型")] = False
-    response_model_exclude_none: Annotated[bool, Field(description="是否排除空的响应类型")] = False
-    include_in_schema: Annotated[bool, Field(description="")] = True
-    response_class: Annotated[type[Response] | Any, Field(description="返回响应的类型")] = Default(JSONResponse)
-    name: Annotated[str | None, Field(description="名")] = None
-    openapi_extra: Annotated[dict[str, Any] | None, Field(description="")] = None
-    # Callable[[APIRoute], str]
-    generate_unique_id_function: Annotated[Any, Field(description="路由处理函数唯一id的生成函数")] = Default(
-        generate_unique_id
-    )
+    def __init__(
+        self,
+        response_model: Annotated[Any, "响应类型"] = None,
+        status_code: Annotated[int | None, "响应状态码"] = None,
+        tags: Annotated[list[str | Enum] | None, "路由标签，自定义"] = None,
+        # pydantic没有Depends的验证器，需要自定义验证器
+        dependencies: Annotated[Sequence[Any] | None, "依赖"] = None,
+        summary: Annotated[str | None, "路由概要，自定义"] = None,
+        description: Annotated[str | None, "路由描述，自定义"] = None,
+        response_description: Annotated[str, "响应结果描述"] = "Successful Response",
+        responses: Annotated[dict[int | str, dict[str, Any]] | None, "响应"] = None,
+        deprecated: Annotated[bool | None, "是否已弃用"] = None,
+        operation_id: Annotated[str | None, "处理id"] = None,
+        response_model_include: Annotated[IncEx | None, "包括的响应类型"] = None,
+        response_model_exclude: Annotated[IncEx | None, "排除的响应类型"] = None,
+        response_model_by_alias: Annotated[bool, "别名响应类型"] = True,
+        response_model_exclude_unset: Annotated[bool, "是否排除非默认响应类型"] = False,
+        response_model_exclude_defaults: Annotated[bool, "是否排除默认响应类型"] = False,
+        response_model_exclude_none: Annotated[bool, "是否排除空的响应类型"] = False,
+        include_in_schema: Annotated[bool, ""] = True,
+        response_class: Annotated[type[Response] | Any, "返回响应的类型"] = Default(JSONResponse),
+        name: Annotated[str | None, "名"] = None,
+        openapi_extra: Annotated[dict[str, Any] | None, ""] = None,
+        generate_unique_id_function: Annotated[Any, "路由处理函数唯一id的生成函数"] = Default(generate_unique_id),
+    ):
+        self.response_model = response_model
+        self.status_code = status_code
+        self.tags = tags
+        self.dependencies = dependencies
+        self.summary = summary
+        self.description = description
+        self.response_description = response_description
+        self.responses = responses
+        self.deprecated = deprecated
+        self.operation_id = operation_id
+        self.response_model_include = response_model_include
+        self.response_model_exclude = response_model_exclude
+        self.response_model_by_alias = response_model_by_alias
+        self.response_model_exclude_unset = response_model_exclude_unset
+        self.response_model_exclude_defaults = response_model_exclude_defaults
+        self.response_model_exclude_none = response_model_exclude_none
+        self.include_in_schema = include_in_schema
+        self.response_class = response_class
+        self.name = name
+        self.openapi_extra = openapi_extra
+        self.generate_unique_id_function = generate_unique_id_function
 
-    @validator("dependencies")
-    def dependencies_validator(cls, v):
-        if v is None:
-            return v
-        if isinstance(v, Sequence) and isinstance(v[0], Depends):
-            return v
-        raise ValueError("依赖参数错误")
+    @property
+    def dict(self):
+        return dict(
+            response_model=self.response_model,
+            status_code=self.status_code,
+            tags=self.tags,
+            dependencies=self.dependencies,
+            summary=self.summary,
+            description=self.description,
+            response_description=self.response_description,
+            responses=self.responses,
+            deprecated=self.deprecated,
+            operation_id=self.operation_id,
+            response_model_include=self.response_model_include,
+            response_model_exclude=self.response_model_exclude,
+            response_model_by_alias=self.response_model_by_alias,
+            response_model_exclude_unset=self.response_model_exclude_unset,
+            response_model_exclude_defaults=self.response_model_exclude_defaults,
+            response_model_exclude_none=self.response_model_exclude_none,
+            include_in_schema=self.include_in_schema,
+            response_class=self.response_class,
+            name=self.name,
+            openapi_extra=self.openapi_extra,
+            generate_unique_id_function=self.generate_unique_id_function,
+        )
 
-    @validator("response_class")
-    def response_class_validator(cls, v):
-        if v is None:
-            return v
-        if (v == type[Response]) or isinstance(v, DefaultPlaceholder):
-            return v
-        raise ValueError("响应类型错误")
 
-
-class RouteRecordItem(BaseModel):
+@dataclass
+class RouteRecordItem:
     """单个路由记录的类型
     - 结构
         - symbol: Symbol 唯一标识
@@ -139,13 +171,12 @@ class RouteRecordItem(BaseModel):
         - params: optional[RouteRecordItemParams] 路由参数
     """
 
-    symbol: Annotated[Symbol, Field(description="该路径的唯一标识")]
-    path: Annotated[str, Field(description="路径，随着匹配逐渐增长")] = ""
-    methods: Annotated[list[str], Field(description="请求方法")]
-    endpoint_name: Annotated[str, Field(description="路由处理函数名")] = ""
-
-    endpoint: Annotated[Callable | None, Field(description="路由处理函数")] = None
-    params: Annotated[RouteRecordItemParams | None, Field(description="装饰器中的路由参数")] = None
+    symbol: Annotated[Symbol, "该路径的唯一标识"]
+    methods: Annotated[list[str], "请求方法"]
+    path: Annotated[str, "路径，随着匹配逐渐增长"] = ""
+    endpoint_name: Annotated[str, "路由处理函数名"] = ""
+    endpoint: Annotated[Callable | None, "路由处理函数"] = None
+    params: Annotated[RouteRecordItemParams | None, "装饰器中的路由参数"] = None
 
 
 # endregion
