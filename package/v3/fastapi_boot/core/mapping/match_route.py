@@ -2,7 +2,7 @@ import os
 from fastapi_boot.core.var.common import CommonVar
 
 from fastapi_boot.model.route_model import RouteRecordItem
-from fastapi_boot.utils.add_task import handle_task
+from fastapi_boot.utils.task import handle_task
 from fastapi_boot.utils.get import get_stack_path
 
 

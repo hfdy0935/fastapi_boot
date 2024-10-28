@@ -9,6 +9,7 @@ from fastapi import Depends
 from fastapi_boot.core.helper.inject import find_dependency
 from fastapi_boot.core.var.constants import DEP_PLACEHOLDER, DepsPlaceholder
 from fastapi_boot.enums.request import RequestMethodEnum
+from fastapi_boot.enums.scan_enum import InjectType
 from fastapi_boot.exception.bean import InjectFailException
 from fastapi_boot.model.route_model import Symbol
 
@@ -98,7 +99,7 @@ def trans_cls_deps(cls: type[Any], stack_path: str):
         for k, v in signature(cls.__init__).parameters.items():
             if k == "self":  # 排除self
                 continue
-            if (default_value := v.default) != inspect._empty:  # 有默认值
+            elif (default_value := v.default) != inspect._empty:  # 有默认值
                 params.update({k: default_value})
                 __replace_init_params_to_depends(new_params, k, v)
             elif (v.annotation) == inspect._empty:  # 无类型无默认值，这里直接报错，不作为请求参数了
@@ -106,18 +107,23 @@ def trans_cls_deps(cls: type[Any], stack_path: str):
                     f"{InjectFailException.msg}，参数 {k} 没有写类型也没有默认值，位置：{Symbol.from_obj(cls).pos}"
                 )
             else:
+                # 有类型
                 # 如果是Annotated且第二个参数是name，则按依赖名注入
                 if typing.get_origin(anno := v.annotation) == typing.Annotated:
                     args = typing.get_args(anno)
-                    Type, name, *_ = args
-                    # 第二个参数是字符串，默认作为依赖名
-                    if isinstance(name, str):
-                        instance = find_dependency(Type, stack_path, name)
+                    DepType, name, *_ = args
+                    # 第二个参数是字符串且不为''，默认作为依赖名
+                    if isinstance(name, str) and name:
+                        instance = find_dependency(InjectType.NAME, stack_path, name=name)
                     else:
-                        # 其他类型，按第一个类型注入依赖
-                        instance = find_dependency(Type, stack_path)
+                        # 按第一个类型注入依赖
+                        instance = find_dependency(InjectType.TYPE, stack_path, DepType=DepType)
+                elif isinstance(anno, str):
+                    # 如果是字符串，则默认为ForwardRef，按类型名注入
+                    instance = find_dependency(InjectType.NAME_OF_TYPE, stack_path, dep_type_name=v.annotation)
                 else:
-                    instance = find_dependency(v.annotation, stack_path)
+                    # 按类型注入
+                    instance = find_dependency(InjectType.TYPE, stack_path, DepType=v.annotation)
                 __replace_init_params_to_depends(new_params, k, v, instance)
                 params.update({k: instance})
 

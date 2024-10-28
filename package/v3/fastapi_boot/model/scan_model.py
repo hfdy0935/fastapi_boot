@@ -4,9 +4,9 @@ import os
 from pathlib import Path
 from typing import (
     Annotated,
+    Any,
     Generic,
     TypeVar,
-    Union,
 )
 from fastapi import APIRouter
 from fastapi_boot.model.route_model import Symbol
@@ -85,5 +85,27 @@ class InjectItem(Generic[T]):
 
     symbol: Symbol
     name: str | None
-    constructor: Union[Callable, type[T]]
+    constructor: Callable | type[T]
     value: T | None = None
+
+
+# ---------------------------------------------------- 主应用挂载后执行的任务 --------------------------------------------------- #
+class MountedTask:
+    def __init__(self, path: str, task: Callable, args: list = []) -> None:
+        self.__path = path
+        self.__task = task
+        self.__args = args
+        self.__done = False
+
+    def run(self):
+        """执行"""
+        self.__task(*self.__args)
+        self.__done = True
+
+    @property
+    def path(self):
+        return self.__path
+
+    @property
+    def task(self):
+        return self.__task

@@ -15,7 +15,7 @@ from fastapi_boot.core.var.constants import ORI_OBJ
 from fastapi_boot.enums.request import RequestMethodEnum
 from fastapi_boot.model.route_model import Symbol
 from fastapi_boot.model.scan_model import ControllerItem
-from fastapi_boot.utils.add_task import handle_task
+from fastapi_boot.utils.task import add_task, handle_task
 from fastapi_boot.utils.get import get_stack_path
 from fastapi_boot.utils.transformer import trans_path
 from fastapi_boot.utils.validator import validate_controller
@@ -30,7 +30,7 @@ def wired_controller(router: APIRouter, obj: Callable):
         if app := CommonVar.get_app(stack_path):
             app.sv.add_controller(item)
 
-    handle_task(stack_path, task)
+    add_task(stack_path, task)
 
 
 class Controller(APIRouter):

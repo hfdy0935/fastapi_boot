@@ -1,5 +1,8 @@
 from collections.abc import Callable
+from copy import deepcopy
+import inspect
 from pathlib import Path
+import typing
 
 
 def is_top_level(obj: Callable) -> bool:
@@ -17,7 +20,13 @@ def is_ancestor(path1: str, path2: str) -> bool:
     p1 = Path(path1)
     p2 = Path(path2)
     # 找到头时p2.parent=p2
-    while (p2 := p2.parent) != p2:
+    while p2.parent != p2:
+        p2 = p2.parent
         if p2 == p1:
             return True
     return False
+
+
+def is_forward_ref(tp: type) -> bool:
+    """判断是不是typing.ForwardRef类型"""
+    return isinstance(tp, typing.ForwardRef)

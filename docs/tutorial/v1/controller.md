@@ -1,3 +1,5 @@
+<h1 style="color:red">已弃用</h1>
+
 ## 1. 控制器的作用
 
 <style>

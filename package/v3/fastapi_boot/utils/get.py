@@ -1,6 +1,7 @@
 import inspect
 import os
 from pathlib import Path
+import typing
 from fastapi_boot.core.var.constants import PROJ_SYS_PATH
 
 
@@ -34,3 +35,8 @@ def get_stack_path(n: int) -> str:
     caller_frame = inspect.stack()[n + 1]
     name = caller_frame.frame.f_code.co_filename
     return name[0].upper() + name[1:]
+
+
+def get_forward_ref_args(tp: typing.ForwardRef) -> str:
+    """取出ForwardRef中的类型字符串"""
+    return tp.__forward_arg__

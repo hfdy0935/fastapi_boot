@@ -101,4 +101,3 @@ class RoutesApplication:
         for c in self.sv.get_controller_list():
             self._mount_routes(c)
             self.app.include_router(c.router)
-        # self.sv.handle_routes()

@@ -1,3 +1,5 @@
+<h1 style="color:red">已弃用</h1>
+
 <b>按照惯例，先从 HelloWorld 开始：</b>
 
 <style>

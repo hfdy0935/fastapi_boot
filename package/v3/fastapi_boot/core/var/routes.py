@@ -27,4 +27,5 @@ class RoutesVar:
         return self._route_record_list
 
     def add_route_record(self, item: RouteRecordItem):
+        """添加路由记录"""
         self.get_route_record_list().append(item)

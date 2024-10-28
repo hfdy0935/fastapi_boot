@@ -1,3 +1,5 @@
+<h1 style="color:red">已弃用</h1>
+
 ## 1. 项目启动
 
 <style>

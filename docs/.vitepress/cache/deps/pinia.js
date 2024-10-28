@@ -2,7 +2,7 @@ import {
   del,
   isVue2,
   set
-} from "./chunk-O3YQPVDG.js";
+} from "./chunk-RUQ2EPB3.js";
 import {
   computed,
   effectScope,
@@ -22,9 +22,9 @@ import {
   toRefs,
   unref,
   watch
-} from "./chunk-PAUCAATC.js";
+} from "./chunk-III5EX5K.js";
 
-// node_modules/pinia/node_modules/@vue/devtools-api/lib/esm/env.js
+// node_modules/.pnpm/@vue+devtools-api@6.6.4/node_modules/@vue/devtools-api/lib/esm/env.js
 function getDevtoolsGlobalHook() {
   return getTarget().__VUE_DEVTOOLS_GLOBAL_HOOK__;
 }
@@ -33,11 +33,11 @@ function getTarget() {
 }
 var isProxyAvailable = typeof Proxy === "function";
 
-// node_modules/pinia/node_modules/@vue/devtools-api/lib/esm/const.js
+// node_modules/.pnpm/@vue+devtools-api@6.6.4/node_modules/@vue/devtools-api/lib/esm/const.js
 var HOOK_SETUP = "devtools-plugin:setup";
 var HOOK_PLUGIN_SETTINGS_SET = "plugin:settings:set";
 
-// node_modules/pinia/node_modules/@vue/devtools-api/lib/esm/time.js
+// node_modules/.pnpm/@vue+devtools-api@6.6.4/node_modules/@vue/devtools-api/lib/esm/time.js
 var supported;
 var perf;
 function isPerformanceSupported() {
@@ -60,7 +60,7 @@ function now() {
   return isPerformanceSupported() ? perf.now() : Date.now();
 }
 
-// node_modules/pinia/node_modules/@vue/devtools-api/lib/esm/proxy.js
+// node_modules/.pnpm/@vue+devtools-api@6.6.4/node_modules/@vue/devtools-api/lib/esm/proxy.js
 var ApiProxy = class {
   constructor(plugin, hook) {
     this.target = null;
@@ -160,7 +160,7 @@ var ApiProxy = class {
   }
 };
 
-// node_modules/pinia/node_modules/@vue/devtools-api/lib/esm/index.js
+// node_modules/.pnpm/@vue+devtools-api@6.6.4/node_modules/@vue/devtools-api/lib/esm/index.js
 function setupDevtoolsPlugin(pluginDescriptor, setupFn) {
   const descriptor = pluginDescriptor;
   const target = getTarget();
@@ -182,7 +182,7 @@ function setupDevtoolsPlugin(pluginDescriptor, setupFn) {
   }
 }
 
-// node_modules/pinia/dist/pinia.mjs
+// node_modules/.pnpm/pinia@2.2.4_vue@3.4.38/node_modules/pinia/dist/pinia.mjs
 var activePinia;
 var setActivePinia = (pinia) => activePinia = pinia;
 var getActivePinia = () => hasInjectionContext() && inject(piniaSymbol) || activePinia;
@@ -1575,7 +1575,10 @@ function mapState(useStore, keysOrMapper) {
     reduced[key] = function() {
       const store = useStore(this.$pinia);
       const storeKey = keysOrMapper[key];
-      return typeof storeKey === "function" ? storeKey.call(this, store) : store[storeKey];
+      return typeof storeKey === "function" ? storeKey.call(this, store) : (
+        // @ts-expect-error: FIXME: should work?
+        store[storeKey]
+      );
     };
     return reduced;
   }, {});
@@ -1688,7 +1691,7 @@ export {
 
 pinia/dist/pinia.mjs:
   (*!
-   * pinia v2.2.2
+   * pinia v2.2.4
    * (c) 2024 Eduardo San Martin Morote
    * @license MIT
    *)

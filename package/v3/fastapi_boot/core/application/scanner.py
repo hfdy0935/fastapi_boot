@@ -13,6 +13,7 @@ from fastapi_boot.model.scan_model import (
     InjectItem,
     ModPkgItem,
 )
+
 from fastapi_boot.utils.transformer import trans_cls_deps, trans_endpoint
 
 T = TypeVar("T")
@@ -80,6 +81,7 @@ class ScannerApplication(Generic[T]):
             )
             tasks.append(target)
             target.start()
+
         for t in tasks:
             t.join()
         # 扫描额外扫描路径
@@ -89,7 +91,8 @@ class ScannerApplication(Generic[T]):
 
     # ----------------------------------------------------- 注入依赖 ---------------------------------------------------- #
 
-    def _inject(self, find_list: list[InjectItem[T]], raise_msg: str) -> T | None:
+    def _handle_inject_result(self, find_list: list[InjectItem[T]], raise_msg: str) -> T | None:
+        """处理注入结果"""
         # 如果没找到
         l = len(find_list)
         if l == 0:
@@ -105,9 +108,10 @@ class ScannerApplication(Generic[T]):
         """根据类型注入依赖"""
         res: list[InjectItem[T]] = []
         for b in self.sv.get_inject_list():
-            if b.constructor == DepType:
+            # 考虑到Bean返回字符串，类型后定义的情况
+            if b.constructor == DepType or b.constructor == DepType.__name__:
                 res.append(b)
-        return self._inject(res, f"确保类型{DepType.__name__}只对应一个依赖，或使用命名依赖")
+        return self._handle_inject_result(res, f"确保类型{DepType.__name__}只对应一个依赖，或使用命名依赖")
 
     def inject_by_name(self, name: str) -> T | None:
         """根据名称注入依赖"""
@@ -115,7 +119,23 @@ class ScannerApplication(Generic[T]):
         for b in self.sv.get_inject_list():
             if b.name == name:
                 res.append(b)
-        return self._inject(res, f"确保依赖名{name}唯一")
+        return self._handle_inject_result(res, f"确保依赖名{name}唯一")
+
+    def inject_by_type_name(self, type_name) -> T | None:
+        """根据类型名注入，考虑到使用 '类型' 的方式写类型，得到的是个 typing.ForwardRef 实例，用 __forward_arg__ 取出字符串/类型名"""
+        res: list[InjectItem[T]] = []
+        for b in self.sv.get_inject_list():
+            # ForwardRef的情况
+            if isinstance(b.constructor, str):
+                if b.constructor == type_name:
+                    res.append(b)
+            # 其他情况
+            elif b.constructor.__name__ == type_name:
+
+                res.append(b)
+        return self._handle_inject_result(res, f"确保类型{type_name}只对应一个依赖，或使用命名依赖")
+
+    # ----------------------------------------------------- 处理请求方法和请求的公共依赖 ---------------------------------------------------- #
 
     def _handle_endpoint_deps(self, cls: type[Any], ctrl: ControllerItem):
         """处理请求映射方法和类的公共依赖"""

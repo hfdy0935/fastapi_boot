@@ -1,4 +1,4 @@
-// node_modules/pinia-plugin-persistedstate/dist/index.mjs
+// node_modules/.pnpm/pinia-plugin-persistedstate@3.2.3_pinia@2.2.4_vue@3.4.38_/node_modules/pinia-plugin-persistedstate/dist/index.js
 function isObject(v) {
   return typeof v === "object" && v !== null;
 }
@@ -21,8 +21,7 @@ function set(state, path, val) {
   return path.slice(0, -1).reduce((obj, p) => {
     if (/^(__proto__)$/.test(p))
       return {};
-    else
-      return obj[p] = obj[p] || {};
+    else return obj[p] = obj[p] || {};
   }, state)[path[path.length - 1]] = val, state;
 }
 function pick(baseState, paths) {
