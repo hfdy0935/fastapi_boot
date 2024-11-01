@@ -11,7 +11,7 @@ hero:
     actions:
         - theme: brand
           text: 开始
-          link: /tutorial/v1/hello_world
+          link: /tutorial/v3
         - theme: alt
           text: APIs
           link: /api/v1

@@ -41,18 +41,17 @@ import uvicorn
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 都是可选参数
-    FastApiBootApplication.run(app, Config())
+    FastApiBootApplication.builder().app(app).build()
+    # 其他配置，缺app就自己创建，缺app_config就创建用app，缺config就用默认项目配置
+    # FastApiBootApplication.builder().app(app).app_config().config(
+    #     Config(exclude_scan_paths=["fastapi_boot", "hidden_bean"], include_scan_paths=["hidden_bean.a.b"])
+    # ).build()
     yield
 
-# 1.
 app = FastAPI(lifespan=lifespan)
 
-# 2. 什么都不传，内部新建无参FastAPI实例，默认配置
-# app = FastAPIBootApplication()
-
-# 3. 参数传配置和FastAPI的配置，返回app
-# app = FastApiBootApplication.fastapi(config=Config(), title="xxx", routes=xxx, summary=xxx, ...)
+# 有时候扫描可能扫描不到app之后的内容，这个时候可以让FastApiBootApplication新建实例再返回
+# app = FastApiBootApplication.builder().build()
 
 @app.get("/")
 def redirect():
@@ -60,8 +59,11 @@ def redirect():
 
 
 def main():
+    # 扫描两次，FastApiBootApplication一次、uvicorn一次
     uvicorn.run("main:app", reload=True)
-
+    # 扫描一次
+    # os.system('uvicorn main:app --reload')
+    # 或者使用fastapi命令行
 
 if __name__ == "__main__":
     main()
@@ -652,7 +654,7 @@ class B:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 这个位置可以传一些配置
-    FastApiBootApplication.run(app, config=Config(exclude_scan_path=["fastapi_boot"]))
+    FastApiBootApplication.builder().app(app).config(Config(exclude_scan_paths=["fastapi_boot"])).build()
     yield
 
 # Config类如下
@@ -666,8 +668,9 @@ class Config:
         default=min(32, (os.cpu_count() or 1) + 4)
     )
 ```
-- 排除的路径将不会收集依赖，额外扫描的路径会收集依赖
-- 自带的api包括`/openapi.json`、`/docs`、`/docs/oauth2-redirect`、`/redoc`
+
+-   排除的路径将不会收集依赖，额外扫描的路径会收集依赖
+-   自带的 api 包括`/openapi.json`、`/docs`、`/docs/oauth2-redirect`、`/redoc`
 
 > 多模块，`common`是公共模型模块，`proj`和`proj2`是两个子应用，挂载到`main`中
 
@@ -759,13 +762,13 @@ class UserController:
 ```py [app1]
 from fastapi_boot import FastApiBootApplication
 
-app = FastApiBootApplication.fastapi(title="proj1")
+app = FastApiBootApplication.builder().app_config(title="proj1").build()
 ```
 
 ```py [app2]
 from fastapi_boot import FastApiBootApplication
 
-app = FastApiBootApplication.fastapi(title="proj2")
+app = FastApiBootApplication.builder().app_config(title="proj2").build()
 ```
 
 :::
