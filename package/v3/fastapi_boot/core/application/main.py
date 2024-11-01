@@ -1,14 +1,9 @@
 from fastapi import FastAPI
+from fastapi_boot.globalvar import GlobalVar
+from fastapi_boot.model.scan import Config, ModPkgItem, MountedTask
+from fastapi_boot.utils import get_stack_path
 
-
-from fastapi_boot.core.var.common import CommonVar
-from fastapi_boot.core.var.routes import RoutesVar
-from fastapi_boot.core.var.scanner import ScannerVar
-from fastapi_boot.model.scan_model import Config, ModPkgItem
-from fastapi_boot.utils.get import get_stack_path
-
-from .routes import RoutesApplication
-from .scanner import ScannerApplication
+from .scan import ScanApplication
 
 
 class MainApplication(ModPkgItem):
@@ -21,31 +16,52 @@ class MainApplication(ModPkgItem):
             config (Config): 项目配置
         """
         self.app = app
-        self.config = config
+        # 任务列表，用来存储暂时依赖不全不能初始化或执行的依赖或Bean
+        self.task_list: list[MountedTask] = []
+        # 任务列表
+        self.is_running_task = False
         # FastApiBoot运行文件路径
         self.setup_file_path = get_stack_path(2)
         # ↑
         super().__init__(self.setup_file_path)
-        # 添加到应用列表
-        CommonVar.add_app(self)
+        # 添加到全局应用列表
+        GlobalVar.add_app(self)
+
         # 创建类
-        self.sv = ScannerVar(
-            self.config.scan_timeout_second,
+        self.__sa = ScanApplication(
+            self,
+            config.scan_timeout_second,
             [
-                self.dot_path,
-                *self.config.exclude_scan_path,
+                self.file_dot_path,  # 排除启动文件路径
+                *config.exclude_scan_paths,
             ],  # 需要排除扫描的模块或包的项目路径
-            self.config.include_scan_path,
+            config.include_scan_paths,
+            max(min(config.max_scan_workers, 100), 1),
             self.setup_file_path,
         )
-        self.rv = RoutesVar(self.sv, self.config.need_pure_api, self.setup_file_path)
-        self.sa = ScannerApplication(self.rv, self.sv, self.setup_file_path)
-        self.ra = RoutesApplication(self.app, self.rv, self.sv, self.setup_file_path)
-
         # 开始扫描
-        self.sa.scan(self.dir_sys_path, self.dot_path)
+        self.__sa.scan(self.dir_sys_path)
+        # 扫描之后执行任务
+        self.run_tasks()
+        # 处理是否需要删除swagger的api页面
+        if config.need_pure_api:
+            for _ in range(4):
+                app.routes.pop(0)
 
-    def run(self):
-        """run"""
-        self.sa.handle_controller_list()
-        self.ra.register()
+    @property
+    def sa(self):
+        return self.__sa
+
+    def add_task(self, *task: MountedTask):
+        """添加一个或多个任务到任务列表后面"""
+        self.task_list.extend(task)
+
+    def run_tasks(self):
+        """执行注册到扫描之后的任务"""
+        for task in self.task_list:
+            if task.done:
+                continue
+            res = task.run()
+            if not res:
+                # 如果运行不成功，改为未运行，以便下次能运行
+                task.undo()

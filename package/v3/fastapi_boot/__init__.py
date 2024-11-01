@@ -1,15 +1,16 @@
-from fastapi_boot.model.scan_model import Config
-from .core.decorator import Controller, Bean, Injectable, FastApiBootApplication, Prefix
+from fastapi_boot.model.scan import Config
+from .core.decorator import Controller, Bean, Injectable, Prefix
+from .fastapiboot import FastApiBootApplication
 from .core.decorator import (
     Injectable as Service,
     Injectable as Repository,
     Injectable as Component,
 )
 
-from .core.helper import Inject
-from .core.helper import Inject as Autowired
-from .core.hook import usedep
-from .core.mapping.func import (
+from .core.inject import Inject
+from .core.inject import Inject as Autowired
+from .core.usedep import usedep
+from .core.mapping import (
     Req,
     Get,
     Post,

@@ -2,6 +2,8 @@
 title: v3
 ---
 
+<h1 style="color:green">推荐使用</h1>
+
 <style>
     .red{
         color:red;
@@ -33,26 +35,37 @@ title: v3
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
-from fastapi_boot import FastApiBootApplication
+from fastapi_boot import FastApiBootApplication, Config
 import uvicorn
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    FastApiBootApplication.run_app(app)
+    # 都是可选参数
+    FastApiBootApplication.run(app, Config())
     yield
 
+# 1.
 app = FastAPI(lifespan=lifespan)
+
+# 2. 什么都不传，内部新建无参FastAPI实例，默认配置
+# app = FastAPIBootApplication()
+
+# 3. 参数传配置和FastAPI的配置，返回app
+# app = FastApiBootApplication.fastapi(config=Config(), title="xxx", routes=xxx, summary=xxx, ...)
 
 @app.get("/")
 def redirect():
     return RedirectResponse("/docs")
 
+
 def main():
     uvicorn.run("main:app", reload=True)
 
+
 if __name__ == "__main__":
     main()
+
 ```
 
 ```py [TestController.py]
@@ -86,6 +99,8 @@ def fbv():
 
 效果：
 ![alt text](image-1.png)
+
+`FastApiBootApplication.run`还可以传第二个参数，详见<a href='#proj-config'>项目配置</a>
 
 ### 嵌套视图
 
@@ -163,7 +178,7 @@ class Test1Controller:
 > 成员类的`self`不受父类`self`属性的影响，可以用来提取公共依赖、排除父类依赖；
 > 当然，成员类也可以有自己的依赖，并且不会影响父类、同级类和子类
 
--   下面的例子中，`/foo`和`/bar`都有两个依赖，分别获取`user-agent`和简单验证查询参数`p`，而`/aaa`不受限制
+-   下面的例子中，`/test1/foo`和`/test1/bar`都有两个依赖，分别获取`user-agent`和简单验证查询参数`p`，而`/test1/baz`不能获取也不受限制
 
 ```py
 from fastapi import HTTPException, Query, Request
@@ -197,15 +212,21 @@ class Test1Controller:
 
     @Prefix()
     class Another:
-        @Get("aaa")
-        def aaa(self):
+        @Get("baz")
+        def baz(self):
             return "success"
 ```
 
 :::details 效果
-![alt text](image-3.png) <hr/>
-![alt text](image-4.png) <hr/>
-![alt text](image-5.png) <hr/>
+![alt text](image-3.png)
+
+<div style='height:20px;background-color:transparent'></div>
+
+![alt text](image-4.png)
+
+<div style='height:20px;background-color:transparent'></div>
+
+![alt text](image-5.png)
 :::
 
 ## 2. 依赖注入
@@ -487,15 +508,12 @@ BiologyList: TypeAlias = list[Biology]
 def get_list(zhangsan: Annotated[Human, "zhangsan"], dog: "Dog") -> BiologyList: # [!code ++]
     return [zhangsan, dog]
 
+class Dog(Biology):
+    owner: Human
 
 @Bean
 def get_dog(owner: Annotated[Human, "zhangsan"]):
     return Dog(name="wangcai", age=2, owner=owner)
-
-
-class Dog(Biology):
-    owner: Human
-
 ```
 
 ```py [service/user.py]
@@ -559,15 +577,17 @@ def get_lisi():
 def get_list(zhangsan: Annotated[Human, "zhangsan"], dog: "Dog[int]") -> "Res[str]": # [!code ++]
     return Res(records=[zhangsan, dog])
 
-@Bean
-def get_dog(owner: Annotated[Human, "zhangsan"]) -> "Dog[int]": # [!code ++]
-    return Dog(name="wangcai", age=2, owner=owner)
 
 # 仅演示泛型依赖注入，无实际类型约束
 T = TypeVar("T")
 
+# 要实例化的类Dog放到get_dog前面，，不然执行时找不到
 class Dog(Biology, Generic[T]):
     owner: Human
+
+@Bean
+def get_dog(owner: Annotated[Human, "zhangsan"]) -> "Dog[int]": # [!code ++]
+    return Dog(name="wangcai", age=2, owner=owner)
 
 class Res(BaseModel, Generic[T]):
     records: list[Biology]
@@ -624,13 +644,15 @@ class B:
 效果：
 ![alt text](image-12.png)
 
-## 3. 项目配置
+## 3. 项目配置<span id='proj-config'></span>及多模块挂载
+
+> 配置
 
 ```py
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 这个位置可以传一些配置
-    FastApiBootApplication.run_app(app, config=Config(exclude_scan_path=["fastapi_boot"]))
+    FastApiBootApplication.run(app, config=Config(exclude_scan_path=["fastapi_boot"]))
     yield
 
 # Config类如下
@@ -638,30 +660,174 @@ async def lifespan(app: FastAPI):
 class Config:
     need_pure_api: Annotated[bool, "是否删除自带的api"] = False
     scan_timeout_second: Annotated[int, "扫描超时时间，超时未找到报错"] = 10
-    exclude_scan_path: Annotated[list[str], "忽略扫描的模块或包在项目中的点路径"] = field(default_factory=list)
-    include_scan_path: Annotated[list[str], "额外扫描的模块或包在项目中的点路径"] = field(default_factory=list)
+    exclude_scan_paths: Annotated[list[str], "忽略扫描的模块或包在项目中的点路径"] = field(default_factory=list)
+    include_scan_paths: Annotated[list[str], "额外扫描的模块或包在项目中的点路径"] = field(default_factory=list)
+    max_scan_workers: Annotated[int, "扫描最大线程数，按照ThreadPoolExecutor的约定"] = field(
+        default=min(32, (os.cpu_count() or 1) + 4)
+    )
 ```
+- 排除的路径将不会收集依赖，额外扫描的路径会收集依赖
+- 自带的api包括`/openapi.json`、`/docs`、`/docs/oauth2-redirect`、`/redoc`
+
+> 多模块，`common`是公共模型模块，`proj`和`proj2`是两个子应用，挂载到`main`中
+
+![alt text](image-13.png)
+**两个子模块的配置基本一样**
+:::code-group
+
+```py [bean]
+# zbean是为了测试不同扫描顺序
+from typing import Annotated
+from fastapi_boot import Bean
+
+from common.model import Car, User
+
+@Bean("zhangsan")
+def get_zhangsan(car: Annotated[Car, "car1"]):
+    return User(name="zhangsan", age=20, cars=[car])
+
+@Bean("lisi")
+def get_lisi(car1: Annotated[Car, "car1"], car2: Annotated[Car, "car2"], car3: Annotated[Car, "car3"]) -> User:
+    return User(name="lisi", age=20, cars=[car1, car2, car3])
+
+@Bean("car1")
+def get_car1():
+    return Car(color="red", price=100000.0)
+
+@Bean("car2")
+def get_car2():
+    return Car(color="blue", price=101923400.0)
+
+@Bean("car3")
+def get_car3():
+    return Car(color="black", price=37948309709358691.0)
+```
+
+```py [proj1 service]
+from typing import Annotated
+from common.model import Car, User
+from fastapi_boot import Service, Inject, Autowired
+
+lisi = User @ Inject.Qualifier("lisi")
+
+@Service
+class UserService:
+    car1 = Autowired(Car, "car1")
+
+    def __init__(self, zhangsan: Annotated[User, "zhangsan"]):
+        self.zhangsan = zhangsan
+        self.car2 = Inject(Car, "car2")
+
+    def get_lisi(self):
+        return dict(lisi=lisi, car1=self.car1, zhangsan=self.zhangsan, car2=self.car2)
+
+```
+
+```py [proj2 service]
+from typing import Annotated
+from common.model import Car, User
+from fastapi_boot import Service, Inject, Autowired
+
+zhangsan = Autowired(User, "zhangsan")
+
+@Service
+class UserService:
+    car1 = Inject.Qualifier("car1") @ Car
+
+    def __init__(self, car2: Annotated[Car, "car2"]) -> None:
+        self.car2 = car2
+        self.zhangsan = Inject(User, "zhangsan")
+
+    def get_lisi(self):
+        return [zhangsan, self.car1, self.car2, self.zhangsan]
+```
+
+```py [controller]
+from fastapi_boot import Controller, Get
+from proj1.service.user import UserService # proj2的从proj2导入
+
+@Controller("/user")
+class UserController:
+    def __init__(self, user_service: UserService) -> None:
+        self.user_service = user_service
+
+    @Get()
+    def list(self):
+        return self.user_service.get_lisi()
+```
+
+```py [app1]
+from fastapi_boot import FastApiBootApplication
+
+app = FastApiBootApplication.fastapi(title="proj1")
+```
+
+```py [app2]
+from fastapi_boot import FastApiBootApplication
+
+app = FastApiBootApplication.fastapi(title="proj2")
+```
+
+:::
+
+:::code-group
+
+```py [common.py]
+from pydantic import BaseModel
+
+class User(BaseModel):
+    name: str
+    age: int
+    cars: list["Car"]
+
+class Car(BaseModel):
+    color: str
+    price: float
+
+class Animal(BaseModel):
+    name: str
+    age: int
+```
+
+```py [main.py]
+from fastapi import FastAPI
+from proj1.app import app as app1
+from proj2.app import app as app2
+import uvicorn
+
+app = FastAPI(title="多模块测试")
+
+app.mount("/proj1", app1)
+app.mount("/proj2", app2)
+
+def main():
+    uvicorn.run("main:app", reload=True)
+
+if __name__ == "__main__":
+    main()
+```
+
+:::
+
+:::details 效果
+![alt text](image-14.png)
+:::
 
 ## 4. 所有 API
 
 ```py
-from fastapi_boot.model.scan_model import Config
-from .core.decorator import (
-    Controller,
-    Bean,
-    Injectable,
-    FastApiBootApplication,
-)
+from fastapi_boot.model.scan import Config
+from .core.decorator import Controller, Bean, Injectable, Prefix
+from .fastapiboot import FastApiBootApplication
 from .core.decorator import (
     Injectable as Service,
     Injectable as Repository,
     Injectable as Component,
 )
-
-from .core.helper import Inject, Prefix
-from .core.helper import Inject as Autowired
-from .core.hook import usedep
-from .core.mapping.func import (
+from .core.inject import Inject
+from .core.inject import Inject as Autowired
+from .core.usedep import usedep
+from .core.mapping import (
     Req,
     Get,
     Post,
@@ -673,9 +839,7 @@ from .core.mapping.func import (
     Trace,
     WebSocket as Socket,
 )
-
 from .enums import RequestMethodEnum as RequestMethod
-
 ```
 
 <span style='color:orange;font-size:20px;font-weight:bold'>更多功能(bug)待探索...</span>

@@ -5,47 +5,26 @@ import inspect
 from typing import (
     Generic,
     TypeVar,
-    ForwardRef,
     Annotated,
     no_type_check,
     overload,
 )
-from inspect import Parameter, isclass, isfunction
+from inspect import Parameter, isclass
 import typing
 
-from fastapi_boot.core.helper.inject import find_dependency_once
-from fastapi_boot.core.var.common import CommonVar
-from fastapi_boot.enums.scan_enum import InjectType
-from fastapi_boot.exception.bean import InjectFailException
-from fastapi_boot.model.route_model import Symbol
-from fastapi_boot.model.scan_model import InjectItem, MountedTask
-from fastapi_boot.utils.get import get_forward_ref_args, get_stack_path
-from fastapi_boot.utils.judger import is_forward_ref
-from fastapi_boot.utils.validator import (
-    validate_bean,
-    validate_inject,
-)
-from fastapi_boot.utils.task import add_task
+
+from fastapi_boot.core.inject import find_dependency_once
+from fastapi_boot.globalvar import GlobalVar
+
+from fastapi_boot.enums import InjectType
+from fastapi_boot.exception import InjectFailException
+from fastapi_boot.model.scan import InjectItem, ModPkgItem, MountedTask, Symbol
+from fastapi_boot.utils import get_stack_path
 
 T = TypeVar("T")
 
 
-# -------------------------------------------------------- 初始化 ------------------------------------------------------- #
-
-
-# ---------------------------------------------------- 处理Bean执行时机 ---------------------------------------------------- #
-def handle_forward_ref(DepType: ForwardRef, stack_path: str):
-    """处理forward_ref类型的依赖
-
-    Args:
-        DepType (ForwardRef):类型
-        stack_path (str): 调用栈位置
-
-    Returns:
-        _type_: 找到就返回，找不到没返回
-    """
-    dep_type_name = get_forward_ref_args(DepType)  # 类型名
-    return find_dependency_once(InjectType.NAME_OF_TYPE, stack_path, dep_type_name=dep_type_name)
+# ---------------------------------------------------- 处理Annotated中的Forward字符串表示的类型 ---------------------------------------------------- #
 
 
 def handle_has_annotations_condition_once(k: str, v: Parameter, params: OrderedDict, stack_path: str) -> bool:
@@ -55,12 +34,13 @@ def handle_has_annotations_condition_once(k: str, v: Parameter, params: OrderedD
         k (str): 参数名
         v (Parameter): Parameter
         params (OrderedDict): 函数的参数，逐个积累
-        stack_path (str): 用于找app的路径
+        stack_path (str): 调用者在项目中的标识
 
     Returns:
-        bool: 是否修改params，如果False表示没找到该依赖
+        bool:是否找到该类型的依赖，True找到了且修改了params，False没找到
     """
     # 如果是Annotated且第二个参数是name，则按依赖名注入，只判断一次
+    instance = None
     if typing.get_origin(anno := v.annotation) == Annotated:
         args = typing.get_args(anno)
         DepType, name, *_ = args
@@ -69,8 +49,9 @@ def handle_has_annotations_condition_once(k: str, v: Parameter, params: OrderedD
             instance = find_dependency_once(InjectType.NAME, stack_path, DepType, name=name)
         else:
             # 如果是ForWardRef类型
-            if is_forward_ref(DepType):
-                instance = handle_forward_ref(DepType, stack_path)
+            if isinstance(DepType, typing.ForwardRef):
+                dep_type_name = DepType.__forward_arg__  # 类型名
+                instance = find_dependency_once(InjectType.NAME_OF_TYPE, stack_path, dep_type_name=dep_type_name)
             else:
                 # 按第一个类型注入依赖
                 instance = find_dependency_once(InjectType.TYPE, stack_path, DepType=DepType)
@@ -88,6 +69,7 @@ def handle_has_annotations_condition_once(k: str, v: Parameter, params: OrderedD
     return False
 
 
+# ---------------------------------------------------- 尝试运行或初始化依赖 ---------------------------------------------------- #
 @dataclass
 class RunResult(Generic[T]):
     ok: bool
@@ -107,7 +89,7 @@ def try_run_bean(func: Callable[..., T], stack_path: str) -> RunResult[T]:
             params.update({k: default_value})
         elif v.annotation == inspect._empty:
             # 如果没类型，直接报错
-            raise Exception(f"找不到参数类型也没有默认值，{k}")
+            raise Exception(f"找不到参数类型也没有默认值，{k}，位置：{Symbol.from_obj(func).pos}")
         # 有类型，尝试注入
         else:
             ok = handle_has_annotations_condition_once(k, v, params, stack_path)
@@ -144,6 +126,84 @@ def try_init_dependency(cls: type[T], stack_path: str) -> InitResult[T]:
     return InitResult(ok=ok, result=cls(*params.values()) if ok else None)
 
 
+# ----------------------------------------------------- 处理注入依赖的任务 ---------------------------------------------------- #
+
+
+def resolve_bean_task(func: Callable, name: str | None = None):
+    """处理bean的任务"""
+    symbol = Symbol.from_obj(func)
+    application = GlobalVar.get_app(symbol.stack_path)
+    return_annotations = inspect.signature(func).return_annotation
+
+    def task():
+        run_result = try_run_bean(func, symbol.stack_path)
+        if run_result.ok:
+            # 有结果，添加到依赖列表
+            item = InjectItem(
+                symbol=symbol,
+                name=name,
+                # 如果没类型注解，直接用type判断返回值类型作为类型
+                constructor=(return_annotations if return_annotations != inspect._empty else type(run_result.result)),
+                value=run_result.result,
+            )
+            application.sa.add_inject(item)
+        return run_result.ok
+
+    # 如果第一次执行失败，添加到任务列表
+    if not task():
+        application.add_task(MountedTask(symbol=symbol, task=task))
+
+
+def resolve_inject_task(
+    cls: type,
+    name: str | None = None,
+):
+    """处理注入依赖的任务"""
+    symbol = Symbol.from_obj(cls)
+    application = GlobalVar.get_app(symbol.stack_path)
+
+    def task():
+        run_result = try_init_dependency(cls, symbol.stack_path)
+        if run_result.ok:
+            # 有结果，添加到依赖列表
+            item = InjectItem(
+                symbol=Symbol.from_obj(cls),
+                name=name,
+                constructor=cls,
+                value=run_result.result,
+            )
+            application.sa.add_inject(item)
+        return run_result.ok
+
+    # 如果第一次执行成功，就不添加任务了
+    if not task():
+        application.add_task(MountedTask(symbol=symbol, task=task))
+
+
+# -------------------------------------------------- 处理是否被排除扫描和额外扫描 -------------------------------------------------- #
+def handle_should_scan_or_not() -> bool:
+    """是否应该扫描该依赖，因为遍历时会扫描，导包时也会扫描，避免没遍历但导包时注入依赖
+
+    Returns:
+        _type_: bool
+    """
+    mod_item = ModPkgItem(get_stack_path(2))
+    # 如果在需要排除扫描且不在额外扫描的路径下，就不扫描
+    sa = GlobalVar.get_app(mod_item.file_sys_path).sa
+    should_scan = True  # 是否可以添加到扫描路径
+    # 是否在排除路径列表中
+    for j in sa.exclude_path_list:
+        if mod_item.is_child_of_dot_path(j):
+            should_scan = False
+            break
+    # 是否在额外扫描路径列表中
+    for k in sa.include_path_list:
+        if mod_item.is_child_of_dot_path(k):
+            should_scan = True
+            break
+    return should_scan
+
+
 # ------------------------------------------------------- Bean ------------------------------------------------------- #
 
 
@@ -151,65 +211,19 @@ def try_init_dependency(cls: type[T], stack_path: str) -> InitResult[T]:
 def Bean(value: str): ...
 @overload
 def Bean(value: Callable[..., T]): ...
-def Bean(value: str | Callable[..., T]):
+def Bean(value: str | Callable[..., T]):  # -> Callable[..., Callable[..., T]] | None:
     """用于注入函数返回类的实例"""
-    stack_path = get_stack_path(1)
-    if isfunction(value):
-        validate_bean(value)
-        # 如果写了返回值的类型，按照返回值类型添加适用于有泛型的情况；否则用type(instance)，没泛型
-        return_annotations = inspect.signature(value).return_annotation
-
-        def task():
-            run_result = try_run_bean(value, stack_path)
-            if not run_result.ok:
-                # 如果没有执行，说明有依赖还没加载，把这个任务放到任务列表最后面
-                CommonVar.add_task(MountedTask(path=stack_path, task=task))
-            else:
-                # 有结果，添加到依赖列表
-                # 这时app肯定存在，因为task时在app挂载后才执行的，判断一下啊为了类型不报错
-                if app := CommonVar.get_app(stack_path):
-                    item = InjectItem(
-                        symbol=Symbol.from_obj(value),
-                        name=None,
-                        constructor=(
-                            return_annotations if return_annotations != inspect._empty else type(run_result.result)
-                        ),
-                        value=run_result.result,
-                    )
-                    app.sv.add_inject(item)
-
-        add_task(stack_path, task)
+    if not handle_should_scan_or_not():
         return
+    if callable(value):
+        resolve_bean_task(value)
+    else:
 
-    assert isinstance(value, str), "依赖名必须是字符串"
+        def wrapper(func: Callable[..., T]):
+            resolve_bean_task(func, value)
+            return func
 
-    def wrapper(obj: Callable[..., T]):
-        validate_bean(obj)
-        return_annotations = inspect.signature(obj).return_annotation
-
-        def task():
-            run_result = try_run_bean(obj, stack_path)
-            if not run_result.ok:
-                # 如果没有执行，说明有依赖还没加载，把这个任务放到任务列表最后面
-                CommonVar.add_task(MountedTask(path=stack_path, task=task))
-                return
-            else:
-                # 有结果，添加到依赖列表
-                # 这时app肯定存在，因为task时在app挂载后才执行的，判断一下啊为了类型不报错
-                if app := CommonVar.get_app(stack_path):
-                    item = InjectItem(
-                        symbol=Symbol.from_obj(obj),
-                        name=value,
-                        constructor=(
-                            return_annotations if return_annotations != inspect._empty else type(run_result.result)
-                        ),
-                        value=run_result.result,
-                    )
-                    app.sv.add_inject(item)
-
-        add_task(stack_path, task)
-
-    return wrapper
+        return wrapper
 
 
 # ---------------------------------------------------- Injectable ---------------------------------------------------- #
@@ -218,49 +232,24 @@ def Bean(value: str | Callable[..., T]):
 @overload
 def Injectable(value: str): ...
 @overload
-def Injectable(value: type): ...
+def Injectable(value: type[T]): ...
 @no_type_check
-def Injectable(value) -> type[T]:
+def Injectable(value: str | type[T]) -> type[T]:
     """可注入的装饰器"""
-    stack_path = get_stack_path(1)
+    should_scan = handle_should_scan_or_not()
     # 如果直接装饰类
     if isclass(value):
-        validate_inject(value)
-
-        def task():
-            init_result = try_init_dependency(value, stack_path)
-            if not init_result.ok:
-                CommonVar.add_task(MountedTask(stack_path, task))
-            elif app := CommonVar.get_app(stack_path):
-                item = InjectItem(
-                    symbol=Symbol.from_obj(value),
-                    name=None,
-                    constructor=value,
-                    value=init_result.result,
-                )
-                app.sv.add_inject(item)
-
-        add_task(stack_path, task)
+        if should_scan:
+            resolve_inject_task(value)
         return value
     else:
         # 如果传了name
-        def wrapper(cls: type):
-            validate_inject(cls)
+        if should_scan:
 
-            def task():
-                init_result = try_init_dependency(value, stack_path)
-                if not init_result.ok:
-                    CommonVar.add_task(MountedTask(stack_path, task))
-                elif app := CommonVar.get_app(stack_path):
-                    item = InjectItem(
-                        symbol=Symbol.from_obj(cls),
-                        name=value,
-                        constructor=cls,
-                        value=init_result.result,
-                    )
-                    app.sv.add_inject(item)
+            def wrapper(cls: type[T]):
+                resolve_inject_task(cls, name=value)
+                return cls
 
-            add_task(stack_path, task)
+            return wrapper
+        else:
             return cls
-
-        return wrapper
