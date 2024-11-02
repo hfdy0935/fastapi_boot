@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from typing import Any
 from fastapi_boot.constants import ROUTE_RECORD
-from fastapi_boot.enums import RouteTypeEnum
 from fastapi_boot.model.route import (
     BaseHttpRouteItem,
     BaseHttpRouteItemWithoutEndpoint,
@@ -18,15 +17,9 @@ class Req(BaseHttpRouteItemWithoutEndpoint):
         # 处理前缀
         self.path = trans_path(self.path)
         print(self.path)
-        with_endpoint = BaseHttpRouteItem(
-            endpoint=endpoint,
-            **self.dict,
-        )
+        with_endpoint = BaseHttpRouteItem(endpoint=endpoint, **self.dict)
 
-        route_record = EndpointRouteRecord(
-            route_type=RouteTypeEnum.ENDPOINT,
-            api_route=with_endpoint,
-        )
+        route_record = EndpointRouteRecord(api_route=with_endpoint)
         setattr(endpoint, ROUTE_RECORD, route_record)
         return endpoint
 
@@ -75,10 +68,6 @@ class WebSocket(WebSocketRouteItemWithoutEndpoint):
     def __call__(self, endpoint: Callable):
         self.path = trans_path(self.path)
         with_endpoint = WebSocketRouteItem(endpoint=endpoint, **self.dict)
-
-        route_record = EndpointRouteRecord(
-            route_type=RouteTypeEnum.ENDPOINT,
-            api_route=with_endpoint,
-        )
+        route_record = EndpointRouteRecord(api_route=with_endpoint)
         setattr(endpoint, ROUTE_RECORD, route_record)
         return endpoint

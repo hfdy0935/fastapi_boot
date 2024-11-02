@@ -10,7 +10,7 @@ from fastapi.routing import APIRoute
 from fastapi.types import IncEx
 from fastapi.utils import generate_unique_id
 
-from fastapi_boot.enums import RequestMethodEnum, RequestMethodStrEnum, RouteTypeEnum
+from fastapi_boot.enums import RequestMethodEnum, RequestMethodStrEnum
 
 
 # ------------------------------------------------------- 请求参数 ------------------------------------------------------- #
@@ -176,11 +176,9 @@ class EndpointRouteRecord:
     """endpoint的路由记录
 
     Args:
-        route_type (RouteTypeEnum): 类型
         api_route (BaseHttpRouteItem  |  WebSocketRouteItem): 路由
     """
 
-    route_type: RouteTypeEnum
     api_route: BaseHttpRouteItem | WebSocketRouteItem
 
 
@@ -189,12 +187,10 @@ class PrefixReoutRecord:
     """prefix的路由记录
 
     Args:
-        route_type (RouteTypeEnum): 类型
         api_routes (list[BaseHttpRouteItem  |  WebSocketRouteItem | &#39;PrefixReoutRecord&#39;]): 子路由
         cls (type): 装饰的类
     """
 
-    route_type: RouteTypeEnum
     api_routes: list["EndpointRouteRecord| PrefixReoutRecord"]
     cls: type
     prefix: str = ""

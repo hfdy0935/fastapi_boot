@@ -2,16 +2,6 @@ from enum import Enum
 from typing import Literal, TypeAlias
 
 
-ControllerType: TypeAlias = Literal["CBV", "FBV"]
-
-
-class RouteTypeEnum(Enum):
-    """控制器下的路由类型"""
-
-    ENDPOINT = "endpoint"
-    PREFIX = "prefix"
-
-
 class InjectType(Enum):
     """依赖注入方式"""
 
