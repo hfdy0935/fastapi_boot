@@ -41,29 +41,29 @@ import uvicorn
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    FastApiBootApplication.builder().app(app).build()
-    # 其他配置，缺app就自己创建，缺app_config就创建用app，缺config就用默认项目配置
-    # FastApiBootApplication.builder().app(app).app_config().config(
+    FastApiBootApplication.app(app).build()
+    # 其他配置，缺app会自己创建，缺app_config默认为空，缺config用默认项目配置
+    # FastApiBootApplication.app(app).app_config().config(
     #     Config(exclude_scan_paths=["fastapi_boot", "hidden_bean"], include_scan_paths=["hidden_bean.a.b"])
     # ).build()
+    # ! 传app和app_config同时使用时app_config失效，传app时对应配置应该在外面就设置好
     yield
 
 app = FastAPI(lifespan=lifespan)
 
-# 有时候扫描可能扫描不到app之后的内容，这个时候可以让FastApiBootApplication新建实例再返回
-# app = FastApiBootApplication.builder().build()
+# 最简示例
+# app = FastApiBootApplication.build()
 
 @app.get("/")
 def redirect():
     return RedirectResponse("/docs")
 
-
 def main():
-    # 扫描两次，FastApiBootApplication一次、uvicorn一次
+    # 1.
     uvicorn.run("main:app", reload=True)
-    # 扫描一次
-    # os.system('uvicorn main:app --reload')
-    # 或者使用fastapi命令行
+    # 2.   os.system('uvicorn main:app --reload')
+    # # 3.  使用fastapi命令行、uvicorn命令行
+    # 如果使用1遇到连续扫描两次而导致路由丢失的情况，建议使用2或3启动l
 
 if __name__ == "__main__":
     main()
@@ -102,7 +102,8 @@ def fbv():
 效果：
 ![alt text](image-1.png)
 
-`FastApiBootApplication.run`还可以传第二个参数，详见<a href='#proj-config'>项目配置</a>
+-   `app_config`参数和`FastAPI`的`__init__`的参数一样；
+-   `config`的参数见<a href='#proj-config'>项目配置</a>
 
 ### 嵌套视图
 
@@ -174,7 +175,7 @@ class Test1Controller:
 
 > 先介绍一个函数`usedep`
 
--   位置：控制器的**静态属性**上
+-   位置：控制器的**静态属性**上，不要放在控制器的`__init__`方法上，因为`__init__`的所有参数都会被认为是项目中需要注入的依赖；
 -   扫描时会自动为控制器下**子路由**注入公共依赖，从而避免在有关的每个请求方法上都写
 
 > 成员类的`self`不受父类`self`属性的影响，可以用来提取公共依赖、排除父类依赖；
@@ -651,11 +652,7 @@ class B:
 > 配置
 
 ```py
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # 这个位置可以传一些配置
-    FastApiBootApplication.builder().app(app).config(Config(exclude_scan_paths=["fastapi_boot"])).build()
-    yield
+app = FastApiBootApplication.app_config(title='foo').config(Config(exclude_scan_paths=["fastapi_boot"])).build()
 
 # Config类如下
 @dataclass
@@ -762,13 +759,13 @@ class UserController:
 ```py [app1]
 from fastapi_boot import FastApiBootApplication
 
-app = FastApiBootApplication.builder().app_config(title="proj1").build()
+app = FastApiBootApplication.app_config(title="proj1").build()
 ```
 
 ```py [app2]
 from fastapi_boot import FastApiBootApplication
 
-app = FastApiBootApplication.builder().app_config(title="proj2").build()
+app = FastApiBootApplication.app_config(title="proj2").build()
 ```
 
 :::
