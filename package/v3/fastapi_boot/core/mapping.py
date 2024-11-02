@@ -16,7 +16,6 @@ class Req(BaseHttpRouteItemWithoutEndpoint):
     def __call__(self, endpoint: Callable) -> Any:
         # 处理前缀
         self.path = trans_path(self.path)
-        print(self.path)
         with_endpoint = BaseHttpRouteItem(endpoint=endpoint, **self.dict)
 
         route_record = EndpointRouteRecord(api_route=with_endpoint)

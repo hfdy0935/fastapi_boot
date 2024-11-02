@@ -1,19 +1,19 @@
 from collections.abc import Callable
 
 from fastapi_boot.constants import ROUTE_RECORD
-from fastapi_boot.model.route import EndpointRouteRecord, PrefixReoutRecord
+from fastapi_boot.model.route import EndpointRouteRecord, PrefixRouteRecord
 from fastapi_boot.utils import trans_path
 
 
 def get_wrapper(prefix: str = ""):
     def wrapper(cls: type):
         # 本层prefix的路由记录
-        prefix_route_record = PrefixReoutRecord(api_routes=[], cls=cls, prefix=prefix)
+        prefix_route_record = PrefixRouteRecord(api_routes=[], cls=cls, prefix=prefix)
         for v in cls.__dict__.values():
             if (
                 hasattr(v, ROUTE_RECORD)
                 and (attr := getattr(v, ROUTE_RECORD))
-                and (isinstance(attr, (EndpointRouteRecord, PrefixReoutRecord)))
+                and (isinstance(attr, (EndpointRouteRecord, PrefixRouteRecord)))
             ):
                 prefix_route_record.api_routes.append(attr)
         # 把本层的方法或子类的路由记录添加到本层的记录上

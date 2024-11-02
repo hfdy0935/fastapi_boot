@@ -10,6 +10,12 @@ class InjectType(Enum):
     NAME_OF_TYPE = "name of type"  # 按类型名
 
 
+class DepPos(Enum):
+    """依赖所在位置"""
+    GLOBAL = 'global'  # 全局的依赖
+    APP = 'app'  # 某个app的依赖
+
+
 class RequestMethodEnum(Enum):
     """请求方法"""
 

@@ -22,7 +22,7 @@ records: dict[str, FastApiBootApplicationBuilder] = {}
 
 class FastApiBootApplication:
     """启动类
-    传了app实例再调用app_config修改配置或先修改配置再传app，则配置不生效；配置只能再没传app，由FastApiBootApplication生成配置时生效
+    传了app实例再调用app_config修改配置或先修改配置再传app，则配置不生效；配置只能在没传app，由FastApiBootApplication生成配置时生效
     """
 
     @classmethod
@@ -53,5 +53,4 @@ class FastApiBootApplication:
     def build():
         stack_path = get_stack_path(1)
         record = records.get(stack_path, FastApiBootApplicationBuilder())
-        records.pop(stack_path)
         return record.build(stack_path)

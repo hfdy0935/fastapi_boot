@@ -183,14 +183,14 @@ class EndpointRouteRecord:
 
 
 @dataclass
-class PrefixReoutRecord:
+class PrefixRouteRecord:
     """prefix的路由记录
 
     Args:
-        api_routes (list[BaseHttpRouteItem  |  WebSocketRouteItem | &#39;PrefixReoutRecord&#39;]): 子路由
+        api_routes (list[BaseHttpRouteItem  |  WebSocketRouteItem | &#39;PrefixRouteRecord&#39;]): 子路由
         cls (type): 装饰的类
     """
 
-    api_routes: list["EndpointRouteRecord| PrefixReoutRecord"]
+    api_routes: list["EndpointRouteRecord| PrefixRouteRecord"]
     cls: type
     prefix: str = ""

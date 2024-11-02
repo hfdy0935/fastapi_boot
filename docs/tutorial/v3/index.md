@@ -649,7 +649,7 @@ class B:
 
 ## 3. 项目配置<span id='proj-config'></span>及多模块挂载
 
-> 配置
+### 配置
 
 ```py
 app = FastApiBootApplication.app_config(title='foo').config(Config(exclude_scan_paths=["fastapi_boot"])).build()
@@ -669,7 +669,9 @@ class Config:
 -   排除的路径将不会收集依赖，额外扫描的路径会收集依赖
 -   自带的 api 包括`/openapi.json`、`/docs`、`/docs/oauth2-redirect`、`/redoc`
 
-> 多模块，`common`是公共模型模块，`proj`和`proj2`是两个子应用，挂载到`main`中
+### 多模块
+
+下面的例子中，`common`是公共模型模块，`proj1`和`proj2`是两个子应用，挂载到`main`。
 
 ![alt text](image-13.png)
 **两个子模块的配置基本一样**
@@ -681,6 +683,7 @@ from typing import Annotated
 from fastapi_boot import Bean
 
 from common.model import Car, User
+
 
 @Bean("zhangsan")
 def get_zhangsan(car: Annotated[Car, "car1"]):
@@ -708,6 +711,7 @@ from typing import Annotated
 from common.model import Car, User
 from fastapi_boot import Service, Inject, Autowired
 
+
 lisi = User @ Inject.Qualifier("lisi")
 
 @Service
@@ -728,6 +732,7 @@ from typing import Annotated
 from common.model import Car, User
 from fastapi_boot import Service, Inject, Autowired
 
+
 zhangsan = Autowired(User, "zhangsan")
 
 @Service
@@ -746,6 +751,7 @@ class UserService:
 from fastapi_boot import Controller, Get
 from proj1.service.user import UserService # proj2的从proj2导入
 
+
 @Controller("/user")
 class UserController:
     def __init__(self, user_service: UserService) -> None:
@@ -759,11 +765,13 @@ class UserController:
 ```py [app1]
 from fastapi_boot import FastApiBootApplication
 
+
 app = FastApiBootApplication.app_config(title="proj1").build()
 ```
 
 ```py [app2]
 from fastapi_boot import FastApiBootApplication
+
 
 app = FastApiBootApplication.app_config(title="proj2").build()
 ```
@@ -774,6 +782,7 @@ app = FastApiBootApplication.app_config(title="proj2").build()
 
 ```py [common.py]
 from pydantic import BaseModel
+
 
 class User(BaseModel):
     name: str
@@ -795,6 +804,7 @@ from proj1.app import app as app1
 from proj2.app import app as app2
 import uvicorn
 
+
 app = FastAPI(title="多模块测试")
 
 app.mount("/proj1", app1)
@@ -812,6 +822,167 @@ if __name__ == "__main__":
 :::details 效果
 ![alt text](image-14.png)
 :::
+
+### 非应用模块依赖的导入
+
+- 一些公共的模块，不需要创建应用，公共模块之间可以互相注入依赖（注意循环引用问题），但**不能注入其他应用的依赖**，最终在其他应用中被注入使用；
+- 下面的例子中`user1`应用和`user2`应用都使用了`service`模块中的依赖`UserService`，而`UserService`使用了`zbean`模块中的一些`User`；
+- 通过在`user1`应用和`user2`应用中指定额外扫描路径`service`，他俩都能注入`UserService`了；
+- 在`user1`中排除扫描`zbean`，但额外扫描`zbean.a.b.c`，所以`user1`应用中可以注入`TestE`，而不能注入那些Bean；
+
+![alt text](image-15.png)
+
+> zbean模块
+:::code-group
+```py [bean1.py]
+from pydantic import BaseModel
+from fastapi_boot import Bean
+
+
+class User(BaseModel):
+    name: str
+    age: int
+
+@Bean('zhangsan')
+def get_user1():
+    return User(name='张三', age=30)
+
+@Bean('lisi')
+def get_user2():
+    return User(name='李四', age=31)
+```
+```py [bean2.py]
+from pydantic import BaseModel
+from fastapi_boot import Bean
+
+
+class User(BaseModel):
+    name: str
+    age: int
+
+@Bean('zhangsan')
+def get_user1():
+    return User(name='张三', age=20)
+
+@Bean('lisi')
+def get_user2():
+    return User(name='李四', age=21)
+```
+```py [f.py]
+from fastapi_boot import Component
+
+
+@Component
+class TestE:
+    name = "teste"
+```
+:::
+
+> service模块
+
+:::code-group
+```py [UserService]
+import random
+from typing import Annotated
+from fastapi_boot import Service, Inject
+
+from zbean.beans1 import User
+from zbean.beans2 import User as User1
+
+
+@Service
+class UserService:
+    zhangsan1 = User1 @ Inject.Qualifier("zhangsan")
+
+    def __init__(self, zhangsan: Annotated[User, "zhangsan"], lisi1: Annotated[User1, "lisi"]) -> None:
+        self.zhangsan = zhangsan
+        self.lisi = Inject.Qualifier("lisi") @ User
+        self.lisi1 = lisi1
+
+    def getall(self):
+        return [self.zhangsan, self.lisi, self.zhangsan1, self.lisi1]
+
+    def get_random_one(self):
+        return [self.zhangsan, self.zhangsan1] if random.randint(1, 2) == 1 else [self.lisi, self.lisi1]
+```
+:::
+
+> user1
+
+:::code-group
+```py [user.py]
+from fastapi_boot import Controller, Post, Inject
+
+from service.user import UserService
+from zbean.a.b.c.d.e.f import TestE
+
+
+@Controller("/user1")
+class UserController:
+
+    def __init__(self, user_service: UserService) -> None:
+        self.user_service = user_service
+        self.teste = TestE @ Inject
+
+    @Post("get-random")
+    def getall(self):
+        return self.user_service.get_random_one(), self.teste.name
+```
+```py [app.py]
+from fastapi_boot import FastApiBootApplication, Config
+
+config = Config(exclude_scan_paths=["zbean"], include_scan_paths=["zbean.a.b.c", "service"]) # [!code ++]
+app = FastApiBootApplication.config(config).app_config(title="user1").build() # [!code ++]
+```
+:::
+
+> user2
+
+:::code-group
+```py [user.py]
+from fastapi_boot import Controller, Get
+from service.user import UserService
+
+
+@Controller("/user2")
+class UserController:
+    def __init__(self, user_service: UserService) -> None:
+        self.user_service = user_service
+
+    @Get("list")
+    def getall(self):
+        return self.user_service.getall()
+```
+```py [app.py]
+from fastapi_boot import FastApiBootApplication, Config
+
+config = Config(include_scan_paths=["service"]) # [!code ++]
+app = FastApiBootApplication.config(config).app_config(title="user2").build() # [!code ++]
+```
+:::
+
+> 启动文件
+
+:::code-group
+```py [main.py]
+from fastapi import FastAPI
+import uvicorn
+from user1.app import app as app1
+from user2.app import app as app2
+
+
+app = FastAPI()
+app.mount("/user1", app1)
+app.mount("/user2", app2)
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", reload=True)
+```
+:::
+
+效果：
+![alt text](image-17.png)
+![alt text](image-16.png)
 
 ## 4. 所有 API
 

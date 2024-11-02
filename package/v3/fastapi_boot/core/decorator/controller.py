@@ -22,7 +22,7 @@ from fastapi_boot.constants import (
 )
 from fastapi_boot.enums import InjectType, RequestMethodEnum
 from fastapi_boot.exception import InjectFailException
-from fastapi_boot.model.route import EndpointRouteRecord, PrefixReoutRecord, WebSocketRouteItem
+from fastapi_boot.model.route import EndpointRouteRecord, PrefixRouteRecord, WebSocketRouteItem
 from fastapi_boot.model.scan import Symbol
 from fastapi_boot.utils import get_stack_path
 from fastapi_boot.utils import trans_path
@@ -117,13 +117,15 @@ def resolve_dependencies(cls: type[Any], stack_path: str):
                 DepType, name, *_ = args
                 # 第二个参数是字符串且不为''，默认作为依赖名
                 if isinstance(name, str) and name:
-                    instance = find_dependency(InjectType.NAME, symbol.stack_path, name=name)
+                    instance = find_dependency(InjectType.NAME, symbol.stack_path, DepType=DepType, name=name)
                 else:
                     # 按第一个类型注入依赖
                     instance = find_dependency(InjectType.TYPE, symbol.stack_path, DepType=DepType)
             elif isinstance(anno, str):
                 # 如果是字符串，则默认为ForwardRef，按类型名注入
-                instance = find_dependency(InjectType.NAME_OF_TYPE, symbol.stack_path, dep_type_name=v.annotation)
+                instance = find_dependency(
+                    InjectType.NAME_OF_TYPE, symbol.stack_path, DepType=object, dep_type_name=v.annotation
+                )
             else:
                 # 按类型注入
                 instance = find_dependency(InjectType.TYPE, symbol.stack_path, DepType=v.annotation)
@@ -146,7 +148,7 @@ def resolve_dependencies(cls: type[Any], stack_path: str):
     setattr(cls, "__init__", new_init)
 
 
-def resolve_prefix(ctrl: "Controller", route_record: PrefixReoutRecord, stack_path: str, prefix: str = ""):
+def resolve_prefix(ctrl: "Controller", route_record: PrefixRouteRecord, stack_path: str, prefix: str = ""):
     """处理prefix类下的路由"""
     cls = route_record.cls
     # 处理依赖包括请求映射方法的依赖和依赖注入的依赖
@@ -157,7 +159,7 @@ def resolve_prefix(ctrl: "Controller", route_record: PrefixReoutRecord, stack_pa
     for api_route in route_record.api_routes:
         if isinstance(api_route, EndpointRouteRecord):
             resolve_endpoint(ctrl, api_route, cls, new_prefix)
-        elif isinstance(api_route, PrefixReoutRecord):
+        elif isinstance(api_route, PrefixRouteRecord):
             # 把该prefix下的子endpoint路由的self挂载到它装饰的类的实例
             resolve_prefix(ctrl, api_route, stack_path, new_prefix)
 
@@ -217,7 +219,7 @@ class Controller(APIRouter):
             if hasattr(v, ROUTE_RECORD) and (attr := getattr(v, ROUTE_RECORD)):
                 if isinstance(attr, EndpointRouteRecord):
                     resolve_endpoint(self, attr, cls)
-                elif isinstance(attr, PrefixReoutRecord):
+                elif isinstance(attr, PrefixRouteRecord):
                     # prefix内的endpoint的self指向prefix装饰的类的实例
                     resolve_prefix(self, attr, symbol.stack_path)
         application.app.include_router(self)

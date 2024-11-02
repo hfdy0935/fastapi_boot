@@ -11,17 +11,22 @@ from typing import (
 )
 from inspect import Parameter, isclass
 import typing
-
-
 from fastapi_boot.core.inject import find_dependency_once
 from fastapi_boot.globalvar import GlobalVar
-
-from fastapi_boot.enums import InjectType
-from fastapi_boot.exception import InjectFailException
-from fastapi_boot.model.scan import InjectItem, ModPkgItem, MountedTask, Symbol
-from fastapi_boot.utils import get_stack_path
+from fastapi_boot.enums import DepPos, InjectType
+from fastapi_boot.exception import AppNotFoundException, InjectFailException
+from fastapi_boot.model.scan import DepRecord, MountedTask, Symbol
 
 T = TypeVar("T")
+
+
+def get_dep_pos(stack_path: str):
+    """在全局还是子应用中"""
+    try:
+        GlobalVar.get_app(stack_path)
+        return DepPos.APP
+    except AppNotFoundException:
+        return DepPos.GLOBAL
 
 
 # ---------------------------------------------------- 处理Annotated中的Forward字符串表示的类型 ---------------------------------------------------- #
@@ -51,18 +56,21 @@ def handle_has_annotations_condition_once(k: str, v: Parameter, params: OrderedD
             # 如果是ForWardRef类型
             if isinstance(DepType, typing.ForwardRef):
                 dep_type_name = DepType.__forward_arg__  # 类型名
-                instance = find_dependency_once(InjectType.NAME_OF_TYPE, stack_path, dep_type_name=dep_type_name)
+                instance = find_dependency_once(
+                    InjectType.NAME_OF_TYPE, stack_path, DepType=object, dep_type_name=dep_type_name
+                )
             else:
                 # 按第一个类型注入依赖
                 instance = find_dependency_once(InjectType.TYPE, stack_path, DepType=DepType)
     else:
         # 如果是字符串，默认为ForwardRef类型
         if isinstance(v.annotation, str):
-            instance = find_dependency_once(InjectType.NAME_OF_TYPE, stack_path, dep_type_name=v.annotation)
+            instance = find_dependency_once(
+                InjectType.NAME_OF_TYPE, stack_path, DepType=object, dep_type_name=v.annotation
+            )
         else:
             # 普通类型
             instance = find_dependency_once(InjectType.TYPE, stack_path, v.annotation)
-
     if instance:
         params.update({k: instance})
         return True
@@ -80,7 +88,7 @@ InitResult = RunResult
 
 
 def try_run_bean(func: Callable[..., T], stack_path: str) -> RunResult[T]:
-    """尝试执行"""
+    """尝试执行Bean装饰的方法"""
     params = OrderedDict()
     ok = True
     for k, v in inspect.signature(func).parameters.items():
@@ -98,7 +106,7 @@ def try_run_bean(func: Callable[..., T], stack_path: str) -> RunResult[T]:
     return RunResult(ok=ok, result=func(*params.values()) if ok else None)
 
 
-def try_init_dependency(cls: type[T], stack_path: str) -> InitResult[T]:
+def try_init_dependency(cls: type[T], stack_path: str = "") -> InitResult[T]:
     """尝试实例化"""
     ok = True
     # 如果没定义__init__，直接实例化返回
@@ -127,82 +135,63 @@ def try_init_dependency(cls: type[T], stack_path: str) -> InitResult[T]:
 
 
 # ----------------------------------------------------- 处理注入依赖的任务 ---------------------------------------------------- #
-
-
 def resolve_bean_task(func: Callable, name: str | None = None):
-    """处理bean的任务"""
+    """处理全局Bean任务"""
     symbol = Symbol.from_obj(func)
-    application = GlobalVar.get_app(symbol.stack_path)
     return_annotations = inspect.signature(func).return_annotation
+    dep_pos = get_dep_pos(symbol.stack_path)
 
     def task():
         run_result = try_run_bean(func, symbol.stack_path)
         if run_result.ok:
-            # 有结果，添加到依赖列表
-            item = InjectItem(
+            # 有结果，添加到依赖列表a
+            item = DepRecord(
                 symbol=symbol,
                 name=name,
                 # 如果没类型注解，直接用type判断返回值类型作为类型
                 constructor=(return_annotations if return_annotations != inspect._empty else type(run_result.result)),
                 value=run_result.result,
             )
-            application.sa.add_inject(item)
+            if dep_pos == DepPos.GLOBAL:
+                GlobalVar.add_dep(item.to_no_app_dep_record())
+            else:
+                GlobalVar.get_app(symbol.stack_path).add_dep(item)
         return run_result.ok
 
-    # 如果第一次执行失败，添加到任务列表
     if not task():
-        application.add_task(MountedTask(symbol=symbol, task=task))
+        task_ = MountedTask(symbol=symbol, task=task)
+        if dep_pos == DepPos.GLOBAL:
+            GlobalVar.add_global_task(task_)
+        else:
+            GlobalVar.get_app(symbol.stack_path).add_task(task_)
 
 
-def resolve_inject_task(
-    cls: type,
-    name: str | None = None,
-):
-    """处理注入依赖的任务"""
+def resolve_inject_task(cls: type, name: str | None = None):
+    """处理收集全局依赖任务"""
     symbol = Symbol.from_obj(cls)
-    application = GlobalVar.get_app(symbol.stack_path)
+    dep_pos = get_dep_pos(symbol.stack_path)
 
     def task():
         run_result = try_init_dependency(cls, symbol.stack_path)
         if run_result.ok:
-            # 有结果，添加到依赖列表
-            item = InjectItem(
+            item = DepRecord(
                 symbol=Symbol.from_obj(cls),
                 name=name,
                 constructor=cls,
                 value=run_result.result,
             )
-            application.sa.add_inject(item)
+            if dep_pos == DepPos.GLOBAL:
+                GlobalVar.add_dep(item.to_no_app_dep_record())
+            else:
+                GlobalVar.get_app(symbol.stack_path).add_dep(item)
         return run_result.ok
 
-    # 如果第一次执行成功，就不添加任务了
     if not task():
-        application.add_task(MountedTask(symbol=symbol, task=task))
-
-
-# -------------------------------------------------- 处理是否被排除扫描和额外扫描 -------------------------------------------------- #
-def handle_should_scan_or_not() -> bool:
-    """是否应该扫描该依赖，因为遍历时会扫描，导包时也会扫描，避免没遍历但导包时注入依赖
-
-    Returns:
-        _type_: bool
-    """
-    mod_item = ModPkgItem(get_stack_path(2))
-    # 如果在需要排除扫描且不在额外扫描的路径下，就不扫描
-    sa = GlobalVar.get_app(mod_item.file_sys_path).sa
-    should_scan = True  # 是否可以添加到扫描路径
-    # 不用考虑项目路径中的模块，因为本来是True
-    # 是否在排除路径列表中
-    for j in sa.exclude_path_list:
-        if mod_item.is_child_of_dot_path(j):
-            should_scan = False
-            break
-    # 是否在额外扫描路径列表中
-    for k in sa.include_path_list:
-        if mod_item.is_child_of_dot_path(k):
-            should_scan = True
-            break
-    return should_scan
+        task_ = MountedTask(symbol=symbol, task=task)
+        if dep_pos == DepPos.GLOBAL:
+            GlobalVar.add_global_task(task_)
+        else:
+            GlobalVar.get_app(symbol.stack_path).add_task(task_)
 
 
 # ------------------------------------------------------- Bean ------------------------------------------------------- #
@@ -212,16 +201,15 @@ def handle_should_scan_or_not() -> bool:
 def Bean(value: str): ...
 @overload
 def Bean(value: Callable[..., T]): ...
-def Bean(value: str | Callable[..., T]):  # -> Callable[..., Callable[..., T]] | None:
+def Bean(value: str | Callable[..., T]):
     """用于注入函数返回类的实例"""
-    if not handle_should_scan_or_not():
-        return
+
     if callable(value):
-        resolve_bean_task(value)
+        resolve_bean_task(func=value)
     else:
 
         def wrapper(func: Callable[..., T]):
-            resolve_bean_task(func, value)
+            resolve_bean_task(func=func, name=value)
             return func
 
         return wrapper
@@ -237,20 +225,13 @@ def Injectable(value: type[T]): ...
 @no_type_check
 def Injectable(value: str | type[T]) -> type[T]:
     """可注入的装饰器"""
-    should_scan = handle_should_scan_or_not()
-    # 如果直接装饰类
     if isclass(value):
-        if should_scan:
-            resolve_inject_task(value)
+        resolve_inject_task(cls=value)
         return value
     else:
-        # 如果传了name
-        if should_scan:
 
-            def wrapper(cls: type[T]):
-                resolve_inject_task(cls, name=value)
-                return cls
-
-            return wrapper
-        else:
+        def wrapper(cls: type[T]):
+            resolve_inject_task(cls=cls, name=value)
             return cls
+
+        return wrapper

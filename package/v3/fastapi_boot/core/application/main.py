@@ -20,12 +20,9 @@ class MainApplication(ModPkgItem):
         self.stack_path = stack_path
         # 任务列表，用来存储暂时依赖不全不能初始化或执行的依赖或Bean
         self.task_list: list[MountedTask] = []
-        # 任务列表
-        self.is_running_task = False
-        # ↑
-        super().__init__(stack_path)
         # 添加到全局应用列表
         GlobalVar.add_app(self)
+        super().__init__(stack_path)
 
         # 创建类
         self.sa = ScanApplication(
@@ -47,6 +44,8 @@ class MainApplication(ModPkgItem):
         if config.need_pure_api:
             for _ in range(4):
                 app.routes.pop(0)
+        for inj in self.sa.get_dep_list():
+            print(inj.constructor, inj.name)
 
     def add_task(self, *task: MountedTask):
         """添加一个或多个任务到任务列表"""
@@ -61,3 +60,6 @@ class MainApplication(ModPkgItem):
             if not res:
                 # 如果运行不成功，改为未运行，以便下次能运行
                 task.undo()
+        # 添加没应用模块的依赖为自己的依赖
+        # 每个app扫描完就可以添加了，因为自己的依赖肯定在自己扫描时就注入完了
+        GlobalVar.add_no_app_deps_to_app(self)
