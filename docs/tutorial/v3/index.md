@@ -223,6 +223,7 @@ class Test1Controller:
 ```
 
 :::details 效果
+`main.py`应该在外面，画错了...
 ![alt text](image-3.png)
 
 <div style='height:20px;background-color:transparent'></div>
@@ -235,7 +236,6 @@ class Test1Controller:
 :::
 
 ### 注意事项
-
 
 :::warning 注意事项
 
@@ -287,6 +287,7 @@ class ChatController:
     async def chat(self, websocket: WebSocket):
         # ...
 ```
+
 :::
 
 ## 3. 项目依赖及注入
@@ -882,15 +883,16 @@ if __name__ == "__main__":
 
 ### 非应用模块依赖的导入
 
-- 一些公共的模块，不需要创建应用，公共模块之间可以互相注入依赖（注意循环引用问题），但**不能注入其他应用的依赖**，最终在其他应用中被注入使用；
-- 下面的例子中`user1`应用和`user2`应用都使用了`service`模块中的依赖`UserService`，而`UserService`使用了`zbean`模块中的一些`User`；
-- 通过在`user1`应用和`user2`应用中指定额外扫描路径`service`，他俩都能注入`UserService`了；
-- 在`user1`中排除扫描`zbean`，但额外扫描`zbean.a.b.c`，所以`user1`应用中可以注入`TestE`，而不能注入那些Bean；
+-   一些公共的模块，不需要创建应用，公共模块之间可以互相注入依赖（注意循环引用问题），但**不能注入其他应用的依赖**，最终在其他应用中被注入使用；
+-   下面的例子中`user1`应用和`user2`应用都使用了`service`模块中的依赖`UserService`，而`UserService`使用了`zbean`模块中的一些`User`；
+-   通过在`user1`应用和`user2`应用中指定额外扫描路径`service`，他俩都能注入`UserService`了；
+-   在`user1`中排除扫描`zbean`，但额外扫描`zbean.a.b.c`，所以`user1`应用中可以注入`TestE`，而不能注入那些 Bean；
 
 ![alt text](image-15.png)
 
-> zbean模块
-:::code-group
+> zbean 模块
+> :::code-group
+
 ```py [bean1.py]
 from pydantic import BaseModel
 from fastapi_boot import Bean
@@ -908,6 +910,7 @@ def get_user1():
 def get_user2():
     return User(name='李四', age=31)
 ```
+
 ```py [bean2.py]
 from pydantic import BaseModel
 from fastapi_boot import Bean
@@ -925,6 +928,7 @@ def get_user1():
 def get_user2():
     return User(name='李四', age=21)
 ```
+
 ```py [f.py]
 from fastapi_boot import Component
 
@@ -933,11 +937,13 @@ from fastapi_boot import Component
 class TestE:
     name = "teste"
 ```
+
 :::
 
-> service模块
+> service 模块
 
 :::code-group
+
 ```py [UserService]
 import random
 from typing import Annotated
@@ -962,11 +968,13 @@ class UserService:
     def get_random_one(self):
         return [self.zhangsan, self.zhangsan1] if random.randint(1, 2) == 1 else [self.lisi, self.lisi1]
 ```
+
 :::
 
 > user1
 
 :::code-group
+
 ```py [user.py]
 from fastapi_boot import Controller, Post, Inject
 
@@ -985,17 +993,20 @@ class UserController:
     def getall(self):
         return self.user_service.get_random_one(), self.teste.name
 ```
+
 ```py [app.py]
 from fastapi_boot import FastApiBootApplication, Config
 
 config = Config(exclude_scan_paths=["zbean"], include_scan_paths=["zbean.a.b.c", "service"]) # [!code ++]
 app = FastApiBootApplication.config(config).app_config(title="user1").build() # [!code ++]
 ```
+
 :::
 
 > user2
 
 :::code-group
+
 ```py [user.py]
 from fastapi_boot import Controller, Get
 from service.user import UserService
@@ -1010,17 +1021,20 @@ class UserController:
     def getall(self):
         return self.user_service.getall()
 ```
+
 ```py [app.py]
 from fastapi_boot import FastApiBootApplication, Config
 
 config = Config(include_scan_paths=["service"]) # [!code ++]
 app = FastApiBootApplication.config(config).app_config(title="user2").build() # [!code ++]
 ```
+
 :::
 
 > 启动文件
 
 :::code-group
+
 ```py [main.py]
 from fastapi import FastAPI
 import uvicorn
@@ -1035,6 +1049,7 @@ app.mount("/user2", app2)
 if __name__ == "__main__":
     uvicorn.run("main:app", reload=True)
 ```
+
 :::
 
 效果：
