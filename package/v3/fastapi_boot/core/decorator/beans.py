@@ -21,12 +21,12 @@ T = TypeVar("T")
 
 
 def get_dep_pos(stack_path: str):
-    """在全局还是子应用中"""
+    """在无app模块还是app中"""
     try:
         GlobalVar.get_app(stack_path)
         return DepPos.APP
     except AppNotFoundException:
-        return DepPos.GLOBAL
+        return DepPos.NO_APP
 
 
 # ---------------------------------------------------- 处理Annotated中的Forward字符串表示的类型 ---------------------------------------------------- #
@@ -136,7 +136,7 @@ def try_init_dependency(cls: type[T], stack_path: str = "") -> InitResult[T]:
 
 # ----------------------------------------------------- 处理注入依赖的任务 ---------------------------------------------------- #
 def resolve_bean_task(func: Callable, name: str | None = None):
-    """处理全局Bean任务"""
+    """执行Bean装饰的函数"""
     symbol = Symbol.from_obj(func)
     return_annotations = inspect.signature(func).return_annotation
     dep_pos = get_dep_pos(symbol.stack_path)
@@ -152,7 +152,7 @@ def resolve_bean_task(func: Callable, name: str | None = None):
                 constructor=(return_annotations if return_annotations != inspect._empty else type(run_result.result)),
                 value=run_result.result,
             )
-            if dep_pos == DepPos.GLOBAL:
+            if dep_pos == DepPos.NO_APP:
                 GlobalVar.add_dep(item.to_no_app_dep_record())
             else:
                 GlobalVar.get_app(symbol.stack_path).add_dep(item)
@@ -160,14 +160,14 @@ def resolve_bean_task(func: Callable, name: str | None = None):
 
     if not task():
         task_ = MountedTask(symbol=symbol, task=task)
-        if dep_pos == DepPos.GLOBAL:
-            GlobalVar.add_global_task(task_)
+        if dep_pos == DepPos.NO_APP:
+            GlobalVar.add_no_app_task(task_)
         else:
             GlobalVar.get_app(symbol.stack_path).add_task(task_)
 
 
 def resolve_inject_task(cls: type, name: str | None = None):
-    """处理收集全局依赖任务"""
+    """初始化依赖"""
     symbol = Symbol.from_obj(cls)
     dep_pos = get_dep_pos(symbol.stack_path)
 
@@ -180,7 +180,7 @@ def resolve_inject_task(cls: type, name: str | None = None):
                 constructor=cls,
                 value=run_result.result,
             )
-            if dep_pos == DepPos.GLOBAL:
+            if dep_pos == DepPos.NO_APP:
                 GlobalVar.add_dep(item.to_no_app_dep_record())
             else:
                 GlobalVar.get_app(symbol.stack_path).add_dep(item)
@@ -188,8 +188,8 @@ def resolve_inject_task(cls: type, name: str | None = None):
 
     if not task():
         task_ = MountedTask(symbol=symbol, task=task)
-        if dep_pos == DepPos.GLOBAL:
-            GlobalVar.add_global_task(task_)
+        if dep_pos == DepPos.NO_APP:
+            GlobalVar.add_no_app_task(task_)
         else:
             GlobalVar.get_app(symbol.stack_path).add_task(task_)
 

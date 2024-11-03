@@ -4,10 +4,9 @@ from fastapi_boot.model.scan import DepRecord, NoAppDepRecord, ModPkgItem, Mount
 
 
 T = TypeVar("T")
-DR = TypeVar("DR", DepRecord, NoAppDepRecord)
 
 
-class GlobalVar(Generic[T, DR]):
+class GlobalVar(Generic[T]):
     # -------------------------------------------------------- 子应用 ------------------------------------------------------- #
     # 应用列表
     __application_list: list = []
@@ -41,7 +40,7 @@ class GlobalVar(Generic[T, DR]):
         GlobalVar.__application_list.append(application)
 
     # -------------------------------------------------------------------------------------------------------------------- #
-    # ------------------------------------------------------- 没有app的模块的依赖 ------------------------------------------------------- #
+    # ------------------------------------------------------- 无app模块的依赖 ------------------------------------------------------- #
     # 不用手动扫描，导入的时候就扫描了；子应用中扫描是为了找出控制器，而控制器中也导入了一次，所以导入了两次，但因为缓存，第二次没算
     # 没有app的模块的依赖列表
     no_app_dep_list: list[NoAppDepRecord] = []
@@ -52,11 +51,11 @@ class GlobalVar(Generic[T, DR]):
 
     @staticmethod
     def add_dep(item: NoAppDepRecord):
-        """全局依赖列表中添加依赖"""
+        """无app模块依赖列表中添加依赖"""
         GlobalVar.no_app_dep_list.append(item)
 
     @staticmethod
-    def _handle_inject_result(find_list: list[DR], raise_msg: str) -> T | None:
+    def _handle_inject_result(find_list: list[DepRecord[T]] | list[NoAppDepRecord[T]], raise_msg: str) -> T | None:
         """处理注入结果"""
         # 如果没找到
         l = len(find_list)
@@ -103,13 +102,13 @@ class GlobalVar(Generic[T, DR]):
         return GlobalVar._handle_inject_result(res, f"确保类型{type_name}只对应一个依赖，或使用命名依赖")
 
     @staticmethod
-    def add_global_task(task: MountedTask):
-        """添加全局任务"""
+    def add_no_app_task(task: MountedTask):
+        """添加无app模块的任务"""
         GlobalVar.no_app_task_list.append(task)
 
     @staticmethod
     def run_no_app_tasks():
-        """运行全局任务"""
+        """运行无app模块的任务"""
         for task in GlobalVar.no_app_task_list:
             if task.done:
                 continue
@@ -124,11 +123,11 @@ class GlobalVar(Generic[T, DR]):
         include_scan_paths = app.config.include_scan_paths
         for dep in GlobalVar.no_app_dep_list:
             # 如果该app已经添加过该依赖，就跳过
-            if app.stack_path in dep.added_deps:
+            if app.stack_path in dep.added_apps:
                 continue
             # 默认不注入，只有在额外扫描路径中写了才能注入
             can_add = False
-            dep.added_deps.append(app.stack_path)
+            dep.added_apps.append(app.stack_path)
             item = ModPkgItem(dep.symbol.stack_path)
             for path in exclude_scan_paths:
                 if item.is_child_of_dot_path(path):

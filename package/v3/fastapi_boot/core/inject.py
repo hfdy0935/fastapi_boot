@@ -10,12 +10,12 @@ T = TypeVar("T")
 
 
 def get_dep_pos(stack_path: str):
-    """在全局还是子应用中"""
+    """在无app模块还是子应用中"""
     try:
         GlobalVar.get_app(stack_path)
         return DepPos.APP
     except AppNotFoundException:
-        return DepPos.GLOBAL
+        return DepPos.NO_APP
 
 
 def find_dependency_once(
@@ -49,7 +49,7 @@ def find_dependency_once(
             GlobalVar.get_app(stack_path).run_tasks()
             return None
     else:
-        # 全局依赖只能注入全局的依赖，不能注入app中的依赖，防止循环引用
+        # 无app模块只能注入无app模块的依赖，不能注入app中的依赖，防止循环引用
         if inject_type == InjectType.NAME:
             res = GlobalVar.inject_by_name(name, DepType)
         elif inject_type == InjectType.TYPE:
@@ -70,8 +70,11 @@ def find_dependency(
     """寻找依赖"""
     res: T | None = None
     dep_pos = get_dep_pos(stack_path)
-    timeout_second = GlobalVar.get_app(
-        stack_path).sa.scan_timeout_second if dep_pos == DepPos.APP else GlobalVar.no_app_scan_timeout_second
+    timeout_second = (
+        GlobalVar.get_app(stack_path).sa.scan_timeout_second
+        if dep_pos == DepPos.APP
+        else GlobalVar.no_app_scan_timeout_second
+    )
     # 报错信息
     if inject_type == InjectType.NAME:
         msg = f"名为 {name} "
@@ -83,8 +86,7 @@ def find_dependency(
     start = time.time()
     while True:
         print("\r", end="")
-        res = find_dependency_once(
-            inject_type, stack_path, DepType, name, dep_type_name)
+        res = find_dependency_once(inject_type, stack_path, DepType, name, dep_type_name)
         if res:
             return res
         time.sleep(0.1)
@@ -134,8 +136,10 @@ class Inject(metaclass=AtUsable):
     @classmethod
     def Qualifier(cls, name: str) -> type["Inject"]:
         """按依赖名注入"""
+
         # 不修改原类
         class Cls(cls):
             INJECT_TYPE = InjectType.NAME
             INJECT_NAME = name
+
         return Cls

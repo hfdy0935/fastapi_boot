@@ -4,9 +4,8 @@ import inspect
 def get_stack_path(n: int) -> str:
     """获取调用栈文件系统路径"""
     # n + 1
-    caller_frame = inspect.stack()[n + 1]
-    name = caller_frame.frame.f_code.co_filename
-    return name[0].upper() + name[1:]
+    filename = inspect.stack()[n + 1].filename
+    return filename[0].upper() + filename[1:]
 
 
 def trans_path(path: str) -> str:

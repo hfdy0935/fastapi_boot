@@ -12,8 +12,9 @@ class InjectType(Enum):
 
 class DepPos(Enum):
     """依赖所在位置"""
-    GLOBAL = 'global'  # 全局的依赖
-    APP = 'app'  # 某个app的依赖
+
+    NO_APP = "no_app"  # 无app模块的依赖
+    APP = "app"  # 某个app的依赖
 
 
 class RequestMethodEnum(Enum):
@@ -31,7 +32,7 @@ class RequestMethodEnum(Enum):
 
     @staticmethod
     def contains(k: str):
-        return k.upper() in list(RequestMethodEnum.__dict__.get("_member_map_", {}).keys())
+        return k.upper() in RequestMethodEnum.__members__
 
 
 RequestMethodStrEnum: TypeAlias = Literal[

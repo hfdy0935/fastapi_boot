@@ -173,7 +173,9 @@ class Test1Controller:
 效果：
 ![alt text](image-2.png)
 
-> 先介绍一个函数`usedep`
+## 2. 请求依赖
+
+### `usedep`
 
 -   位置：控制器的**静态属性**上，不要放在控制器的`__init__`方法上，因为`__init__`的所有参数都会被认为是项目中需要注入的依赖；
 -   扫描时会自动为控制器下**子路由**注入公共依赖，从而避免在有关的每个请求方法上都写
@@ -232,7 +234,62 @@ class Test1Controller:
 ![alt text](image-5.png)
 :::
 
-## 2. 依赖注入
+### 注意事项
+
+
+:::warning 注意事项
+
+-   由于每次请求都会执行控制器的`__init__`方法来更新请求依赖，所以尽量不要在控制器的`__init__`方法中执行其他逻辑，建议不写`__init__`，**请求依赖写到控制器的静态属性上，项目依赖写到控制器的静态属性**或外面；
+-   其他项目依赖的`__init__`方法没有限制，只会初始化一次；
+
+:::
+
+:::code-group
+
+```py [一个小坑]
+from fastapi import WebSocket, WebSocketDisconnect
+from fastapi_boot import Socket, Controller
+
+
+@Controller("/chat")
+class ChatController:
+
+    def __init__(self) -> None:
+        # 这里每次请求都会重置self.websocket_list，所以它只有当前请求的websocket，只能把自己发的消息消息广播给自己
+        self.websocket_list: list[WebSocket] = [] # [!code error]
+
+    @Socket()
+    async def chat(self, websocket: WebSocket):
+        await websocket.accept()
+        self.websocket_list.append(websocket)
+        while True:
+            try:
+                msg = await websocket.receive_text()
+            except WebSocketDisconnect:
+                self.websocket_list.remove(websocket)
+                print(f"{websocket} 断开连接")
+                break
+            print(f"客户端发来消息：{msg}")
+            for ws in self.websocket_list:
+                print(ws)
+                await ws.send_text(msg)
+```
+
+```py [解决方法]
+# 也可以写到外面，建议还是高内聚低耦合
+websocket_list: list[WebSocket] = [] # [!code warning]
+
+@Controller("/chat")
+class ChatController:
+    websocket_list: list[WebSocket] = [] # [!code ++]
+
+    @Socket()
+    async def chat(self, websocket: WebSocket):
+        # ...
+```
+:::
+
+## 3. 项目依赖及注入
 
 ### 收集依赖
 
@@ -647,7 +704,7 @@ class B:
 效果：
 ![alt text](image-12.png)
 
-## 3. 项目配置<span id='proj-config'></span>及多模块挂载
+## 4. 项目配置<span id='proj-config'></span>及多模块挂载
 
 ### 配置
 
@@ -984,7 +1041,7 @@ if __name__ == "__main__":
 ![alt text](image-17.png)
 ![alt text](image-16.png)
 
-## 4. 所有 API
+## 5. 所有 API
 
 ```py
 from fastapi_boot.model.scan import Config

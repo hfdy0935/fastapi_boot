@@ -30,7 +30,7 @@ class ModPkgItem:
     def file_dot_parts(self):
         """文件在项目中的点路径parts"""
         # 去掉前面的项目路径和后面的.py
-        return list(Path(self.file_sys_path[:-3]).parts[len(Path(PROJ_SYS_PATH).parts):])
+        return list(Path(self.file_sys_path[:-3]).parts[len(Path(PROJ_SYS_PATH).parts) :])
 
     @property
     def file_dot_path(self):
@@ -54,13 +54,12 @@ class ModPkgItem:
         return ".".join(self.dir_dot_parts)
 
     # ------------------------------------------------------ methods ----------------------------------------------------- #
-    def equals(self, other: 'ModPkgItem'):
+    def equals(self, other: "ModPkgItem"):
         return self.file_sys_path == other.file_sys_path
 
     def is_child_of_dot_path(self, dot_path: str):
         """本模块是否在点路径dot_path之下，用于排除和额外扫描路径"""
-        sys_parts1 = Path(os.path.join(
-            PROJ_SYS_PATH, *dot_path.split("."))).parts
+        sys_parts1 = Path(os.path.join(PROJ_SYS_PATH, *dot_path.split("."))).parts
         sys_parts2 = Path(self.file_sys_path[:-3]).parts  # 删除.py
         same_head = [1 for i, j in zip(sys_parts1, sys_parts2) if i == j]
         return len(same_head) == len(sys_parts1)
@@ -122,6 +121,7 @@ T = TypeVar("T")
 @dataclass
 class DepRecord(Generic[T]):
     """收集的依赖记录"""
+
     symbol: Symbol
     name: str | None
     constructor: type[T]
@@ -138,7 +138,9 @@ class DepRecord(Generic[T]):
 @dataclass
 class NoAppDepRecord(DepRecord, Generic[T]):
     """无应用模块的依赖记录，要额外记录已被哪些应用添加"""
-    added_deps: list[str] = field(default_factory=list)  # 已添加应用的主文件系统路径
+
+    added_apps: list[str] = field(default_factory=list)  # 已添加应用的主文件系统路径
+
 
 # -------------------------------------------------------- 项目配置 -------------------------------------------------------- #
 
@@ -147,10 +149,8 @@ class NoAppDepRecord(DepRecord, Generic[T]):
 class Config:
     need_pure_api: Annotated[bool, "是否删除自带的api"] = False
     scan_timeout_second: Annotated[int, "扫描超时时间，超时未找到报错"] = 10
-    exclude_scan_paths: Annotated[list[str], "忽略扫描的模块或包在项目中的点路径"] = field(
-        default_factory=list)
-    include_scan_paths: Annotated[list[str], "额外扫描的模块或包在项目中的点路径"] = field(
-        default_factory=list)
+    exclude_scan_paths: Annotated[list[str], "忽略扫描的模块或包在项目中的点路径"] = field(default_factory=list)
+    include_scan_paths: Annotated[list[str], "额外扫描的模块或包在项目中的点路径"] = field(default_factory=list)
     max_scan_workers: Annotated[int, "扫描最大线程数，按照ThreadPoolExecutor的约定"] = field(
         default=min(32, (os.cpu_count() or 1) + 4)
     )

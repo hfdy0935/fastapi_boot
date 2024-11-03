@@ -44,8 +44,6 @@ class MainApplication(ModPkgItem):
         if config.need_pure_api:
             for _ in range(4):
                 app.routes.pop(0)
-        for inj in self.sa.get_dep_list():
-            print(inj.constructor, inj.name)
 
     def add_task(self, *task: MountedTask):
         """添加一个或多个任务到任务列表"""
