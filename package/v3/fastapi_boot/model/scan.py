@@ -5,16 +5,16 @@ import os
 from pathlib import Path
 from typing import (
     Annotated,
+    Any,
     Generic,
     TypeVar,
 )
 from fastapi_boot.constants import PROJ_SYS_PATH
 
 
-# ------------------------------------------------------- 模块/包 ------------------------------------------------------- #
-
-
-class ModPkgItem:
+# ------------------------------------------------------- 模块 ------------------------------------------------------- #
+class ModRecord:
+    """模块记录"""
 
     def __init__(self, file_sys_path: str):
         """file_sys_path: 文件所在系统路径"""
@@ -54,7 +54,8 @@ class ModPkgItem:
         return ".".join(self.dir_dot_parts)
 
     # ------------------------------------------------------ methods ----------------------------------------------------- #
-    def equals(self, other: "ModPkgItem"):
+    def equals(self, other: "ModRecord"):
+        """是否等于另一个模块"""
         return self.file_sys_path == other.file_sys_path
 
     def is_child_of_dot_path(self, dot_path: str):
@@ -79,10 +80,10 @@ class ModPkgItem:
 @dataclass
 class Symbol:
     """
-    - 路由的唯一标识
+    - 标识
     """
 
-    mod_pkg_item: Annotated[ModPkgItem, "ModPkgItem实例"]
+    mod_pkg_item: Annotated[ModRecord, "ModRecord实例"]
     context_path: Annotated[str, "该对象的上下文路径"]
 
     @staticmethod
@@ -98,11 +99,11 @@ class Symbol:
         stack_path = inspect.getfile(obj)
         stack_path = stack_path[0].upper() + stack_path[1:]
         context_path = obj.__qualname__
-        return Symbol(ModPkgItem(stack_path), context_path=context_path)
+        return Symbol(ModRecord(stack_path), context_path=context_path)
 
     @classmethod
     def fake(cls, stack_path):
-        return cls(ModPkgItem(stack_path), "")
+        return cls(ModRecord(stack_path), "")
 
     @property
     def stack_path(self) -> str:
@@ -148,6 +149,7 @@ class NoAppDepRecord(DepRecord, Generic[T]):
 @dataclass
 class Config:
     need_pure_api: Annotated[bool, "是否删除自带的api"] = False
+    scan: Annotated[bool, "是否需要扫描，不扫描的话需要手动挂载路由"] = True
     scan_timeout_second: Annotated[int, "扫描超时时间，超时未找到报错"] = 10
     exclude_scan_paths: Annotated[list[str], "忽略扫描的模块或包在项目中的点路径"] = field(default_factory=list)
     include_scan_paths: Annotated[list[str], "额外扫描的模块或包在项目中的点路径"] = field(default_factory=list)
@@ -187,3 +189,14 @@ class MountedTask(Generic[T]):
     def undo(self):
         """修改任务状态为未运行"""
         self.__done = False
+
+
+# ------------------------------------------------------ 查找函数/方法形参所需依赖的结果 ----------------------------------------------------- #
+
+
+@dataclass
+class InjectParamsResult:
+    """注入方法所需参数的结果"""
+
+    ok: bool  # 是否成功
+    params: dict[str, Any]  # 参数字典，k参数名、v侏注入值

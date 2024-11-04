@@ -13,8 +13,18 @@ class InjectType(Enum):
 class DepPos(Enum):
     """依赖所在位置"""
 
-    NO_APP = "no_app"  # 无app模块的依赖
+    NO_APP = "no_app"  # 无app模块的依赖，没找到的都分为NO_APP，后续找到可能会改
     APP = "app"  # 某个app的依赖
+
+
+class DepInjectPos(Enum):
+    """依赖要注入的位置
+    - 控制器需要一直阻塞，等待注入
+    - 其他位置的如果没找到依赖，会添加到应用或全局任务，之后再找
+    """
+
+    CONTROLLER = "controller"  # 控制器
+    OTHER = "other"  # 其他
 
 
 class RequestMethodEnum(Enum):

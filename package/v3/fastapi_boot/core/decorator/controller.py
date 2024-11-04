@@ -1,10 +1,10 @@
-from collections import OrderedDict
 from collections.abc import Callable, Sequence
+import copy
 from enum import Enum
+from functools import wraps
 import inspect
 from inspect import Parameter
-from typing import Any, get_type_hints
-import typing
+from typing import Any, Generic, TypeVar, get_type_hints, no_type_check
 from fastapi import APIRouter, Depends, Response, params
 from fastapi.datastructures import Default
 from fastapi.responses import JSONResponse
@@ -13,30 +13,30 @@ from fastapi.utils import generate_unique_id
 from starlette.routing import BaseRoute
 from starlette.types import Lifespan, ASGIApp
 
-from fastapi_boot.core.inject import find_dependency
+
 from fastapi_boot.globalvar import GlobalVar
-from fastapi_boot.constants import (
-    DEP_PLACEHOLDER,
-    ROUTE_RECORD,
-    DepsPlaceholder,
-)
-from fastapi_boot.enums import InjectType, RequestMethodEnum
-from fastapi_boot.exception import InjectFailException
-from fastapi_boot.model.route import EndpointRouteRecord, PrefixRouteRecord, WebSocketRouteItem
-from fastapi_boot.model.scan import Symbol
-from fastapi_boot.utils import get_stack_path
-from fastapi_boot.utils import trans_path
+from fastapi_boot.constants import ControllerRoutePlaceholderContainer, REQ_DEP_PLACEHOLDER, CONTROLLER_ROUTE_RECORD
+from fastapi_boot.enums import RequestMethodEnum
+from fastapi_boot.model.route import BaseHttpRouteItem, EndpointRouteRecord, PrefixRouteRecord, WebSocketRouteItem
+from fastapi_boot.model.scan import InjectParamsResult, MountedTask, Symbol
+from fastapi_boot.utils.deps import try_resolve_controller_init_params
+from fastapi_boot.utils.pure import trans_path
+
+T = TypeVar("T")
 
 
-# ----------------------------------------------- 处理endpoint的self以及挂载路由 ---------------------------------------------- #
-
-
+# ----------------------------------------------- 处理endpoint的self以及挂载到控制器 ---------------------------------------------- #
 def resolve_endpoint_self(func: Callable, dep: type):
-    """处理endpoint的self，dep是被装饰的类，所以控制器在每次有请求时就会重新实例化..."""
+    """处理endpoint的self，dep是被装饰的类，所以控制器在每次有请求时就会重新实例化...
+
+    Args:
+        func (Callable): 路由请求映射方法
+        dep (type): 需要把这个方法的self变成谁的实例
+    """
     old_params = list(inspect.signature(func).parameters.values())
     # 如果第一个参数不是self，不需要处理
-    if (not (osn := [i.name for i in old_params])) or (osn and osn[0] != "self"):
-        return func
+    if not old_params or old_params[0].name != "self":
+        return
     old_sign = inspect.signature(func)
     old_first_param = old_params[0]
     new_first_param = old_first_param.replace(default=Depends(dep))
@@ -45,94 +45,85 @@ def resolve_endpoint_self(func: Callable, dep: type):
     setattr(func, "__signature__", new_sign)
 
 
-def resolve_endpoint(ctrl: "Controller", route_record: EndpointRouteRecord, cls: type, prefix: str = ""):
-    """处理endpoint"""
-    api_route = route_record.api_route
-    # 处理self
-    resolve_endpoint_self(api_route.endpoint, cls)
-    # 处理前缀
-    route_record.api_route.path = prefix + route_record.api_route.path
-    # 挂载路由
+def add_single_api_route(api_route: BaseHttpRouteItem | WebSocketRouteItem, anchor: APIRouter):
+    """挂载单个endpoint
+
+    Args:
+        api_route (BaseHttpRouteItem | WebSocketRouteItem): 基础路由或websocket路由
+        anchor (APIRouter): 挂载点
+    """
     if isinstance(api_route, WebSocketRouteItem):
-        ctrl.add_api_websocket_route(**api_route.dict)
+        anchor.add_api_websocket_route(**api_route.dict)
     else:
         for method in api_route.methods:
             dic = api_route.dict
             dic.update({"methods": [method]})
-            ctrl.add_api_route(**dic)
+            anchor.add_api_route(**dic)
+
+
+def resolve_endpoint(
+    ctrl: "Controller",
+    route_record: EndpointRouteRecord,
+    cls: type,
+    total_route_list: list[BaseHttpRouteItem | WebSocketRouteItem],
+    prefix: str = "",
+):
+    """把endpoint挂载到控制器上
+
+    Args:
+        ctrl (Controller): 控制器实例
+        route_record (EndpointRouteRecord): 路由记录
+        cls (type): 该endpoint所在的类，用于初始化它的self
+        total_route_list (list[BaseHttpRouteItem | WebSocketRouteItem]): 控制器的所有请求记录
+        prefix (str, optional): endpoint路径的前缀. Defaults to "".
+    """
+    api_route = route_record.api_route
+    # 处理self
+    resolve_endpoint_self(api_route.endpoint, cls)
+    # 处理前缀
+    api_route.path = prefix + route_record.api_route.path
+    total_route_list.append(api_route)
+    # 挂载路由
+    add_single_api_route(api_route, ctrl)
 
 
 # ------------------------------------------------------- 处理依赖 ------------------------------------------------------- #
-def __replace_init_params_to_depends(params_list: list[Parameter], k: str, v: Parameter, value: Any = None):
+def update_proj_deps_params_to_depends(params: list[Parameter], proj_deps_dict: dict[str, Any]):
     """
-    - 替换参数列表中对应参数为Depends(xxx)的依赖项，以便依赖注入，防止fastapi把它作为请求参数
-    - 参数类型都改成KEYWORD_ONLY，防止顺序错误
+    1. 把参数params中项目依赖参数proj_deps_dict的默认值改为Depends()，避免被识别成查询参数；
+    2. 把上面找到的参数类型改为关键字参数，避免顺序出现错误；
+
+    Args:
+        params (list[Parameter]): Controller或Prefix装饰类的__init__的参数
+        proj_deps_dict (dict[str, Any]): 找到的项目依赖，key => 依赖名，value => 注入的依赖值
     """
-    for idx, p in enumerate(params_list):
-        # 如果找到了就替换
-        if p.name == k:
-            new_parameter = Parameter(
-                name=k, kind=Parameter.KEYWORD_ONLY, default=Depends(lambda: v), annotation=v.annotation
-            )
-            params_list[idx] = new_parameter
-            return
-    # 没找到就直接加到最后
-    params_list.append(
-        Parameter(name=k, kind=Parameter.KEYWORD_ONLY, default=Depends(lambda: value), annotation=v.annotation)
-    )
+    for idx, param in enumerate(params):
+        if param.name in proj_deps_dict and (defaulr := proj_deps_dict.get(param.name)):
+            params[idx] = param.replace(kind=Parameter.KEYWORD_ONLY, default=Depends(lambda: defaulr))
 
 
-def resolve_dependencies(cls: type[Any], stack_path: str):
-    """处理依赖包括请求映射方法的依赖和依赖注入的依赖"""
+def resolve_req_dependencies(cls: type[Any], proj_deps_dict: dict[str, Any]):
+    """处理请求方法的依赖，即使用了usedep的静态变量
+
+    Args:
+        cls (type[Any]): Controller或Prefix装饰的类
+        proj_deps_dict (dict[str, Any]): 已经注入的__init__方法中的项目依赖
+    """
     # 1. 获得新的init方法签名
     old_init = cls.__init__
     old_sign = inspect.signature(cls)
-    old_params = list(old_sign.parameters.values())
-    new_params = [i for i in old_params if i.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL)]
-    dep_names = []
+    old_params = list(old_sign.parameters.values())[1:]
+    new_params: list[Parameter] = [
+        i for i in old_params if i.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL)
+    ]
+    dep_names: list[str] = []
     for name, value in cls.__dict__.items():
         hint = get_type_hints(cls).get(name)
-        if hasattr(value, DEP_PLACEHOLDER) and getattr(value, DEP_PLACEHOLDER) == DepsPlaceholder:
+        if hasattr(value, REQ_DEP_PLACEHOLDER):
             dep_names.append(name)
             new_params.append(Parameter(name, Parameter.KEYWORD_ONLY, annotation=hint, default=value))
-
-    # 新的初始化参数
-    params = OrderedDict()
-    for k, v in old_sign.parameters.items():
-        if k == "self":  # 排除self
-            continue
-        elif (default_value := v.default) != inspect._empty:  # 有默认值
-            params.update({k: default_value})
-            __replace_init_params_to_depends(new_params, k, v)
-        elif (v.annotation) == inspect._empty:  # 无类型无默认值，这里直接报错，不作为请求参数了
-            raise InjectFailException(
-                f"{InjectFailException.msg}，参数 {k} 没有写类型也没有默认值，位置：{Symbol.from_obj(cls).pos}"
-            )
-        else:
-            # 有类型
-            symbol = Symbol.from_obj(cls)
-            # 如果是Annotated且第二个参数是name，则按依赖名注入
-            if typing.get_origin(anno := v.annotation) == typing.Annotated:
-                args = typing.get_args(anno)
-                DepType, name, *_ = args
-                # 第二个参数是字符串且不为''，默认作为依赖名
-                if isinstance(name, str) and name:
-                    instance = find_dependency(InjectType.NAME, symbol.stack_path, DepType=DepType, name=name)
-                else:
-                    # 按第一个类型注入依赖
-                    instance = find_dependency(InjectType.TYPE, symbol.stack_path, DepType=DepType)
-            elif isinstance(anno, str):
-                # 如果是字符串，则默认为ForwardRef，按类型名注入
-                instance = find_dependency(
-                    InjectType.NAME_OF_TYPE, symbol.stack_path, DepType=object, dep_type_name=v.annotation
-                )
-            else:
-                # 按类型注入
-                instance = find_dependency(InjectType.TYPE, symbol.stack_path, DepType=v.annotation)
-
-            __replace_init_params_to_depends(new_params, k, v, instance)
-            params.update({k: instance})
-
+    # 用half_params替换new_params中的同名参数的kind和default属性
+    update_proj_deps_params_to_depends(new_params, proj_deps_dict)
     # 新方法的签名
     new_sign = old_sign.replace(parameters=new_params)
 
@@ -142,30 +133,121 @@ def resolve_dependencies(cls: type[Any], stack_path: str):
         for name in dep_names:
             value = kwargs.pop(name)
             setattr(self, name, value)
-        old_init(self, **params)
+        # 旧的init只需要项目依赖
+        old_init(self, **proj_deps_dict)
 
     setattr(cls, "__signature__", new_sign)
     setattr(cls, "__init__", new_init)
 
 
-def resolve_prefix(ctrl: "Controller", route_record: PrefixRouteRecord, stack_path: str, prefix: str = ""):
-    """处理prefix类下的路由"""
+def resolve_proj_deps(cls: Any, stack_path: str) -> tuple[InjectParamsResult, Callable]:
+    """注入项目中的依赖
+
+    Args:
+        cls (Any): 所在的类
+        stack_path (str): 调用栈文件系统路径
+
+    Returns:
+        tuple[InjectParamsResult, Callable]: tuple(注入的结果，该类被wraps装饰后的函数)
+    """
+
+    @wraps(cls)
+    def decorator(*args, **kwds):
+        return cls(*args, **kwds)
+
+    init_params = inspect.signature(cls.__init__).parameters
+    init_params_dict = {k: v for k, v in init_params.items() if k != "self"}
+    res = try_resolve_controller_init_params(decorator, init_params_dict, stack_path)
+    return res, decorator
+
+
+# ---------------------------------------------------- 递归处理Prefix ---------------------------------------------------- #
+def resolve_prefix(
+    ctrl: "Controller",
+    route_record: PrefixRouteRecord,
+    stack_path: str,
+    total_route_list: list[BaseHttpRouteItem | WebSocketRouteItem],
+    prefix: str = "",
+):
+    """处理Prefix装饰的类
+
+    Args:
+        ctrl (Controller): Controlelr实例
+        route_record (PrefixRouteRecord): 路由记录
+        stack_path (str): 调用栈文件系统路径
+        total_route_list (list[BaseHttpRouteItem | WebSocketRouteItem]): 控制器的所有请求路径，每添加一个endpoint就累积
+        prefix (str, optional): 路径前缀. Defaults to "".
+    """
     cls = route_record.cls
-    # 处理依赖包括请求映射方法的依赖和依赖注入的依赖
-    resolve_dependencies(route_record.cls, stack_path)
+    # 先注入项目的依赖
+    res, decorator = resolve_proj_deps(cls, stack_path)
+    # 再修__init__中项目依赖的参数的kind和default，以及处理请求的依赖
+    resolve_req_dependencies(cls, res.params)
     # 更新前缀
     new_prefix = prefix + route_record.prefix
     # 挂载路由
     for api_route in route_record.api_routes:
         if isinstance(api_route, EndpointRouteRecord):
-            resolve_endpoint(ctrl, api_route, cls, new_prefix)
+            resolve_endpoint(ctrl, api_route, cls, total_route_list, new_prefix)
         elif isinstance(api_route, PrefixRouteRecord):
             # 把该prefix下的子endpoint路由的self挂载到它装饰的类的实例
-            resolve_prefix(ctrl, api_route, stack_path, new_prefix)
+            resolve_prefix(ctrl, api_route, stack_path, total_route_list, new_prefix)
+
+
+# ----------------------------------------------------- 控制器挂载到子应用 ---------------------------------------------------- #
+def mount_controller_to_app(symbol: Symbol, ctrl: "Controller"):
+    """把Controller挂载到应用
+
+    Args:
+        symbol (Symbol): 调用栈文件系统路径
+        ctrl (Controller): 控制器实例
+    """
+
+    def task():
+        app = GlobalVar.get_app(symbol.stack_path)
+        if app.config.scan:
+            app.app.include_router(ctrl)
+
+    try:
+        task()
+    except:
+        GlobalVar.add_app_task(MountedTask(symbol, task))
+
+
+# -------------------------------------------------- 处理use_router的路径 ------------------------------------------------- #
+def resolve_use_router_path(
+    path_list: list[str],
+    prefix: str,
+    total_route_record: list[BaseHttpRouteItem | WebSocketRouteItem],
+) -> APIRouter:
+    """use_router的路由提取
+
+    Args:
+        path_list (list[str]): 要提取的请求路径列表
+        prefix (str): 前缀，一般使用Controller的前缀
+        total_route_record (list[BaseHttpRouteItem  |  WebSocketRouteItem]): 总的路由记录列表，已记录完整
+
+    Returns:
+        APIRouter:
+    """
+    res = APIRouter()
+    # 如果是空就全挂载
+    if len(path_list) == 0:
+        for record in total_route_record:
+            record.path = prefix + record.path
+            add_single_api_route(record, res)
+    else:
+        # 提取出use_router的path内的路由
+        for path in path_list:
+            for record in total_route_record:
+                if trans_path(path) == record.path:
+                    record.path = prefix + record.path
+                    add_single_api_route(record, res)
+    return res
 
 
 # -------------------------------------------------------- 控制器 ------------------------------------------------------- #
-class Controller(APIRouter):
+class Controller(APIRouter, Generic[T]):
     def __init__(
         self,
         prefix: str = "",  # 为了把prefix改成位置参数，就重写了一个init...
@@ -208,35 +290,50 @@ class Controller(APIRouter):
             generate_unique_id_function=generate_unique_id_function,
         )
 
-    def __call__(self, cls: type[Any]):
+    @no_type_check
+    def __call__(self, cls: type[T]) -> T:
         symbol = Symbol.from_obj(cls)
-        application = GlobalVar.get_app(symbol.stack_path)
-
-        # 处理依赖包括请求映射方法的依赖和依赖注入的依赖
-        resolve_dependencies(cls, symbol.stack_path)
+        # 先注入项目的依赖
+        res, decorator = resolve_proj_deps(cls, symbol.stack_path)
+        # 再修__init__中项目依赖的参数的kind和default，以及处理请求的依赖
+        resolve_req_dependencies(cls, res.params)
+        # 总的路由记录列表，挂载过程中不断累积，用于匹配use_router的路径
+        total_route_record: list[BaseHttpRouteItem | WebSocketRouteItem] = []
+        # 需要替换的use_router静态属性名
+        use_router_dict: dict[str, list[str]] = {}
         # 遍历，挂载，处理self
-        for v in cls.__dict__.values():
-            if hasattr(v, ROUTE_RECORD) and (attr := getattr(v, ROUTE_RECORD)):
+        for k, v in cls.__dict__.items():
+            if isinstance(v, ControllerRoutePlaceholderContainer):
+                # 路由占位符，更新decorator的就行了，最终返回的是decorator
+                use_router_dict.update({k: v.paths})
+            elif hasattr(v, CONTROLLER_ROUTE_RECORD) and (attr := getattr(v, CONTROLLER_ROUTE_RECORD)):
                 if isinstance(attr, EndpointRouteRecord):
-                    resolve_endpoint(self, attr, cls)
+                    resolve_endpoint(self, attr, cls, total_route_record)
                 elif isinstance(attr, PrefixRouteRecord):
                     # prefix内的endpoint的self指向prefix装饰的类的实例
-                    resolve_prefix(self, attr, symbol.stack_path)
-        application.app.include_router(self)
+                    resolve_prefix(self, attr, symbol.stack_path, total_route_record)
+        # 替换use_router
+        for k, v in use_router_dict.items():
+            setattr(decorator, k, resolve_use_router_path(v, self.prefix, total_route_record))
+        # 把控制器挂载到应用
+        mount_controller_to_app(symbol, self)
+        return decorator
 
     def __getattribute__(self, k: str):
         attr = super().__getattribute__(k)
-        stack_path = get_stack_path(1)
         if RequestMethodEnum.contains(k) or k == "api_route":
             # include_router的时候，如果self没有routes，添加不了
             # 所以外面再包两层，等self里面有路由了再挂载到app
             def decorator(*args, **kwargs):
                 def wrapper(endpoint):
+                    symbol = Symbol.from_obj(endpoint)
                     if k.upper() == RequestMethodEnum.WEBSOCKET:
                         self.add_api_websocket_route(*args, **kwargs, endpoint=endpoint)
                     else:
                         self.add_api_route(*args, **kwargs, methods=[k], endpoint=endpoint)
-                    GlobalVar.get_app(stack_path).app.include_router(self)
+
+                    # 挂载
+                    mount_controller_to_app(symbol, self)
                     return endpoint
 
                 return wrapper

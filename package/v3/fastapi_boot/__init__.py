@@ -9,7 +9,7 @@ from .core.decorator import (
 
 from .core.inject import Inject
 from .core.inject import Inject as Autowired
-from .core.usedep import usedep
+from .core.hook import usedep, use_router
 from .core.mapping import (
     Req,
     Get,

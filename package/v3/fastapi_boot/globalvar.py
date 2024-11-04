@@ -1,6 +1,6 @@
 from typing import Generic, TypeVar
 from fastapi_boot.exception import AppNotFoundException, InjectFailException
-from fastapi_boot.model.scan import DepRecord, NoAppDepRecord, ModPkgItem, MountedTask, NoAppDepRecord
+from fastapi_boot.model.scan import DepRecord, NoAppDepRecord, ModRecord, MountedTask, NoAppDepRecord
 
 
 T = TypeVar("T")
@@ -8,36 +8,47 @@ T = TypeVar("T")
 
 class GlobalVar(Generic[T]):
     # -------------------------------------------------------- 子应用 ------------------------------------------------------- #
-    # 应用列表
-    __application_list: list = []
+    # 子应用列表
+    __app_list: list = []
+    # 子应用任务列表，子应用还没创建，但后面肯定会创建
+    __app_task_list: list[MountedTask] = []
 
     @staticmethod
     def get_app(path: str):
-        """根据路径获取application，在子应用内部的肯定能获取成，外部的依赖就抛出异常
+        """根据路径获取application，在子应用内部的能获取成，外部的依赖就抛出异常
 
         Args:
             path (str): 路径
 
         Returns:
-            MainApplication|None: 主应用，可能找不到
+            MainApplication | None: 主应用，可能找不到
         """
-        if len(res := [app for app in GlobalVar.__application_list if app.is_super_of_stack_path(path)]) > 0:
+        if len(res := [app for app in GlobalVar.__app_list if app.mod.is_super_of_stack_path(path)]) > 0:
             return res[0]
         raise AppNotFoundException(AppNotFoundException.msg + f"，位置：{path}")
 
     @staticmethod
     def get_all_apps():
-        """获取所有application
-
-        Returns:
-            list[MainApplication]: 主应用列表
-        """
-        return GlobalVar.__application_list
+        return GlobalVar.__app_list
 
     @staticmethod
-    def add_app(application):
+    def add_app(app):
         """添加一个application"""
-        GlobalVar.__application_list.append(application)
+        GlobalVar.__app_list.append(app)
+
+    @staticmethod
+    def add_app_task(task: MountedTask):
+        """添加子应用的任务"""
+        GlobalVar.__app_task_list.append(task)
+
+    @staticmethod
+    def run_app_task(app):
+        """运行子应用的任务；
+        1. 用于先扫描应用注册后扫描应用的路由时；
+        """
+        for task in GlobalVar.__app_task_list:
+            if app.mod.is_super_of_stack_path(task.symbol.stack_path):
+                task.run()
 
     # -------------------------------------------------------------------------------------------------------------------- #
     # ------------------------------------------------------- 无app模块的依赖 ------------------------------------------------------- #
@@ -116,9 +127,11 @@ class GlobalVar(Generic[T]):
             if not res:
                 task.undo()
 
-    # ------------------------------------ 如果子应用include_scan_paths扫描全局的依赖，就筛选出来加到子应用上 ------------------------------------ #
     @staticmethod
-    def add_no_app_deps_to_app(app):
+    def add_no_app_dep_to_app(stack_path: str):
+        """把无app的依赖加到app上作为全局依赖"""
+        # 把不属于任何子应用且被该子应用扫描的依赖添加给该子应用
+        app = GlobalVar.get_app(stack_path)
         exclude_scan_paths = app.config.exclude_scan_paths
         include_scan_paths = app.config.include_scan_paths
         for dep in GlobalVar.no_app_dep_list:
@@ -128,7 +141,7 @@ class GlobalVar(Generic[T]):
             # 默认不注入，只有在额外扫描路径中写了才能注入
             can_add = False
             dep.added_apps.append(app.stack_path)
-            item = ModPkgItem(dep.symbol.stack_path)
+            item = ModRecord(dep.symbol.stack_path)
             for path in exclude_scan_paths:
                 if item.is_child_of_dot_path(path):
                     can_add = False
@@ -139,3 +152,21 @@ class GlobalVar(Generic[T]):
                     break
             if can_add:
                 app.sa.add_dep(dep)
+
+    @staticmethod
+    def change_error_dep_pos():
+        """修改判断错误的dep_pos
+        - 比如app1挂载了app2的Controller，app1先扫描，这时app2没开始扫描，导入Controller中__init__的依赖就会找不到app而添加到到no app上；
+        - 静态属性和参数不受影响（因为在静态阶段依赖在npo app上，他俩导入的no app的依赖），而__init__内注入的语句运行时app2已经扫描完毕，再注入会去app2上找，就找不到了；
+        - 静态注入的不用管了；
+        """
+        for app in GlobalVar.__app_list:
+            send_deps = [
+                dep for dep in GlobalVar.no_app_dep_list if app.mod.is_super_of_stack_path(dep.symbol.stack_path)
+            ]
+            if len(send_deps) == 0:
+                continue
+            # 添加给具体的app
+            app.sa.add_dep(*send_deps)
+            # 从原来的里面删除
+            GlobalVar.no_app_dep_list = [dep for dep in GlobalVar.no_app_dep_list if dep not in send_deps]

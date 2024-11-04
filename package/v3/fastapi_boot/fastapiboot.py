@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from fastapi_boot.core.application.main import MainApplication
 from fastapi_boot.model.scan import Config
-from fastapi_boot.utils import get_stack_path
+from fastapi_boot.utils.pure import get_stack_path
 
 
 class FastApiBootApplicationBuilder:

@@ -716,6 +716,7 @@ app = FastApiBootApplication.app_config(title='foo').config(Config(exclude_scan_
 @dataclass
 class Config:
     need_pure_api: Annotated[bool, "是否删除自带的api"] = False
+    scan: Annotated[bool, "是否需要扫描，不扫描的话需要手动挂载路由"] = True
     scan_timeout_second: Annotated[int, "扫描超时时间，超时未找到报错"] = 10
     exclude_scan_paths: Annotated[list[str], "忽略扫描的模块或包在项目中的点路径"] = field(default_factory=list)
     include_scan_paths: Annotated[list[str], "额外扫描的模块或包在项目中的点路径"] = field(default_factory=list)
@@ -1055,6 +1056,154 @@ if __name__ == "__main__":
 效果：
 ![alt text](image-17.png)
 ![alt text](image-16.png)
+
+### 一路由多用
+
+-   `Controller`中使用`use_router`捕获路由，在其他应用中挂载即可
+
+:::code-group
+
+```py [user1]
+from fastapi_boot import Controller, Post, Inject, use_router
+from service.user import UserService
+
+
+@Controller("/user1")
+class UserController:
+    router = use_router() # [!code ++]
+
+    def __init__(self, user_service: UserService) -> None:
+        self.user_service = user_service
+
+    @Post("get-random")
+    def getall(self):
+        return self.user_service.get_random_one()
+```
+
+```py [user2]
+from typing import Annotated
+from fastapi_boot import Controller, Delete, Prefix, Put, use_router
+from user2.service.user import UserService
+from zbean.beans2 import User
+
+
+@Controller("/user2")
+class UserController:
+    router = use_router() # [!code ++]
+
+    def __init__(self, user_service: UserService, zhangsan: Annotated[User, "zhangsan"]) -> None:
+        self.user_service = user_service
+        self.zhangsan = zhangsan
+
+    @Put("/crud")
+    def crud(self):
+        return (
+            self.user_service.insert(),
+            self.user_service.find_ond(),
+            self.user_service.update_one(),
+            self.user_service.delete_one(),
+            self.zhangsan,
+        )
+
+    @Prefix("/prefix")
+    class PrefixCls:
+        @Delete()
+        def delete(self):
+            return True
+```
+
+```py [app1]
+from fastapi_boot import FastApiBootApplication, Config
+
+# 默认自动扫描
+config = Config(exclude_scan_paths=["zbean"], include_scan_paths=["zbean.a.b.c", "service"])
+app = FastApiBootApplication.config(config).app_config(title="user1").build()
+
+# 这里要等app创建完毕再导入，不然会报错
+from user2.controller.user import UserController as U2
+
+# 挂载user2的一个路由
+app.include_router(U2.router)
+```
+
+```py [app2]
+from fastapi import FastAPI
+from fastapi_boot import FastApiBootApplication, Config
+
+# 设置scan=False，不扫描
+config = Config(include_scan_paths=["service", "zbean.beans2", "dao.user"], scan=False)
+app = FastApiBootApplication.config(config).app_config(title="user2").build()
+
+# 手动导入user2和user1的路由并挂载
+from user1.controller.user import UserController as U1
+from user2.controller.user import UserController
+
+app.include_router(U1.router)
+app.include_router(UserController.router)
+```
+
+```py [main]
+import uvicorn
+from multiprocessing import Process
+from user1.app import app as app1
+from user2.app import app as app2
+
+
+def task(name: str, port: int):
+    uvicorn.run(f"main:{name}", port=port, reload=True)
+
+
+if __name__ == "__main__":
+    # 多进程微服务
+    p1 = Process(
+        target=task,
+        args=("app1", 8000,),
+    )
+    p2 = Process(
+        target=task,
+        args=("app2", 8001,),
+    )
+    p1.start()
+    p2.start()
+    p1.join()
+    p2.join()
+```
+
+:::
+
+效果：
+![alt text](image-18.png)
+它们都能调用对方接口；
+
+-   或者也可以给`use_router`指定要提取哪些路径。不需要加`Controller`的前缀；
+    比如之前的`user2`中改成如下：
+
+```py
+@Controller("/user2")
+class UserController:
+    # 参数是个*args，后续如果要加其他参数，可能会调整为列表
+    router = use_router() # [!code --]
+    router = use_router("prefix") # [!code ++]
+# ...
+```
+
+然后就变成这样了，user2 自己的路由也剩一个了，因为 user2 也用了导入的路由而不是自动扫描的
+![alt text](image-19.png)
+现在开启`app2`的自动扫描，并注释掉手动导入（不管也行，FastAPI 会警告 id 一样，会去重，只算一个），再看看效果：
+
+```py [app2]
+config = Config(include_scan_paths=["service", "zbean.beans2", "dao.user"])
+app = FastApiBootApplication.config(config).app_config(title="user2").build()
+
+from user1.controller.user import UserController as U1
+
+# from user2.controller.user import UserController
+app.include_router(U1.router)
+# app.include_router(UserController.router)
+```
+
+![alt text](image-20.png)
+回来了
 
 ## 5. 所有 API
 
