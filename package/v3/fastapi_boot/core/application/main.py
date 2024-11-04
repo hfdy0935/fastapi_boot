@@ -43,7 +43,7 @@ class MainApplication:
         self.run_tasks()
         GlobalVar.run_app_task(self)
         # 每个app创建完，更新一次依赖所属关系，防止错误
-        GlobalVar.change_error_dep_pos()
+        GlobalVar.change_error_dep_pos(self)
         # 处理是否需要删除swagger的api页面
         if config.need_pure_api:
             for _ in range(4):

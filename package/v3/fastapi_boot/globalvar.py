@@ -15,7 +15,7 @@ class GlobalVar(Generic[T]):
 
     @staticmethod
     def get_app(path: str):
-        """根据路径获取application，在子应用内部的能获取成，外部的依赖就抛出异常
+        """根据路径获取app，在子应用内部的能获取成，外部的依赖就抛出异常
 
         Args:
             path (str): 路径
@@ -154,19 +154,16 @@ class GlobalVar(Generic[T]):
                 app.sa.add_dep(dep)
 
     @staticmethod
-    def change_error_dep_pos():
+    def change_error_dep_pos(app):
         """修改判断错误的dep_pos
         - 比如app1挂载了app2的Controller，app1先扫描，这时app2没开始扫描，导入Controller中__init__的依赖就会找不到app而添加到到no app上；
         - 静态属性和参数不受影响（因为在静态阶段依赖在npo app上，他俩导入的no app的依赖），而__init__内注入的语句运行时app2已经扫描完毕，再注入会去app2上找，就找不到了；
         - 静态注入的不用管了；
         """
-        for app in GlobalVar.__app_list:
-            send_deps = [
-                dep for dep in GlobalVar.no_app_dep_list if app.mod.is_super_of_stack_path(dep.symbol.stack_path)
-            ]
-            if len(send_deps) == 0:
-                continue
-            # 添加给具体的app
-            app.sa.add_dep(*send_deps)
-            # 从原来的里面删除
-            GlobalVar.no_app_dep_list = [dep for dep in GlobalVar.no_app_dep_list if dep not in send_deps]
+        send_deps = [dep for dep in GlobalVar.no_app_dep_list if app.mod.is_super_of_stack_path(dep.symbol.stack_path)]
+        if len(send_deps) == 0:
+            return
+        # 添加给具体的app
+        app.sa.add_dep(*send_deps)
+        # 从原来的里面删除
+        GlobalVar.no_app_dep_list = [dep for dep in GlobalVar.no_app_dep_list if dep not in send_deps]

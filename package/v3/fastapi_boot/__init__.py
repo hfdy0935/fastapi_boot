@@ -7,10 +7,10 @@ from .core.decorator import (
     Injectable as Component,
 )
 
-from .core.inject import Inject
-from .core.inject import Inject as Autowired
+from .core.decorator.inject import Inject
+from .core.decorator.inject import Inject as Autowired
 from .core.hook import usedep, use_router
-from .core.mapping import (
+from .core.decorator.mapping import (
     Req,
     Get,
     Post,

@@ -1,5 +1,4 @@
 from collections.abc import Callable, Sequence
-import copy
 from enum import Enum
 from functools import wraps
 import inspect
