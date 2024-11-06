@@ -199,4 +199,4 @@ class InjectParamsResult:
     """注入方法所需参数的结果"""
 
     ok: bool  # 是否成功
-    params: dict[str, Any]  # 参数字典，k参数名、v侏注入值
+    params: dict[str, Any]  # 参数字典，k参数名、v注入值

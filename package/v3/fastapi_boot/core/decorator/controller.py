@@ -127,10 +127,10 @@ def resolve_req_dependencies(cls: type[Any], proj_deps_dict: dict[str, Any]):
     new_sign = old_sign.replace(parameters=new_params)
 
     # 3。 得到新的init
-    def new_init(self, *args, **kwargs):
+    def new_init(self, *args, **kwds):
         # 删除usedep变量名，并设置到self上
         for name in dep_names:
-            value = kwargs.pop(name)
+            value = kwds.pop(name)
             setattr(self, name, value)
         # 旧的init只需要项目依赖
         old_init(self, **proj_deps_dict)
@@ -323,16 +323,24 @@ class Controller(APIRouter, Generic[T]):
         if RequestMethodEnum.contains(k) or k == "api_route":
             # include_router的时候，如果self没有routes，添加不了
             # 所以外面再包两层，等self里面有路由了再挂载到app
-            def decorator(*args, **kwargs):
+            def decorator(*args, **kwds):
                 def wrapper(endpoint):
                     symbol = Symbol.from_obj(endpoint)
                     if k.upper() == RequestMethodEnum.WEBSOCKET:
-                        self.add_api_websocket_route(*args, **kwargs, endpoint=endpoint)
+                        self.add_api_websocket_route(*args, **kwds, endpoint=endpoint)
+                    elif k == "api_route":
+                        methods = kwds.pop("methods") if "methods" in kwds else ["get"]
+                        if len(methods) == 1 and methods[0].upper() == RequestMethodEnum.WEBSOCKET.value:
+                            self.add_api_websocket_route(*args, **kwds, endpoint=endpoint)
+                        else:
+                            # 默认传多个没有websocket
+                            for method in methods:
+                                self.add_api_route(*args, **kwds, methods=[method], endpoint=endpoint)
                     else:
-                        self.add_api_route(*args, **kwargs, methods=[k], endpoint=endpoint)
-
+                        self.add_api_route(*args, **kwds, methods=[k], endpoint=endpoint)
                     # 挂载
                     mount_controller_to_app(symbol, self)
+                    setattr(endpoint, "router", self)
                     return endpoint
 
                 return wrapper
