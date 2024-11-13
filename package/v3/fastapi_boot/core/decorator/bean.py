@@ -1,16 +1,13 @@
-from collections.abc import Callable
 import inspect
-from typing import (
-    TypeVar,
-    no_type_check,
-    overload,
-)
-from fastapi_boot.globalvar import GlobalVar
+from collections.abc import Callable
+from typing import TypeVar, no_type_check, overload
+
 from fastapi_boot.enums import DepPos
+from fastapi_boot.globalvar import GlobalVar
 from fastapi_boot.model.scan import DepRecord, MountedTask, Symbol
 from fastapi_boot.utils.deps import get_dep_pos, try_resolve_other_init_params
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 
 # ------------------------------------------------------- Bean ------------------------------------------------------- #

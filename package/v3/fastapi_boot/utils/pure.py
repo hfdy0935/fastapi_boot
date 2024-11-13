@@ -16,6 +16,6 @@ def trans_path(path: str) -> str:
     > 3. a/ => /a
     > 4. /a/ => /a
     """
-    res = "/" + path.lstrip("/")
-    res = res.rstrip("/")
-    return "" if res == "/" else res
+    res = '/' + path.lstrip('/')
+    res = res.rstrip('/')
+    return '' if res == '/' else res

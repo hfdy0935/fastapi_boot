@@ -2,10 +2,10 @@ from collections.abc import Callable
 from typing import TypeVar, no_type_check
 
 from fastapi import APIRouter, Depends
-from fastapi_boot.constants import ControllerRoutePlaceholderContainer, REQ_DEP_PLACEHOLDER
 
+from fastapi_boot.constants import REQ_DEP_PLACEHOLDER, ControllerRoutePlaceholderContainer
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 
 def usedep(dependency: Callable[..., T] | None, use_cache: bool = True) -> T:

@@ -1,12 +1,13 @@
 from typing import TypeVar
+
 from fastapi_boot.enums import InjectType
 from fastapi_boot.utils.deps import find_dependency, get_real_type
 from fastapi_boot.utils.pure import get_stack_path
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 
-def resolve_at(self: type["Inject"], DepType: type[T], stack_path: str):
+def resolve_at(self: type['Inject'], DepType: type[T], stack_path: str):
     """处理左@和右@，注入依赖，@时不考虑ForwardRef
 
     Args:
@@ -29,12 +30,12 @@ class AtUsable(type):
     def __new__(cls, name, bases, dct):
         return super().__new__(cls, name, bases, dct)
 
-    def __matmul__(self: type["Inject"], other: type[T]) -> T:
+    def __matmul__(self: type['Inject'], other: type[T]) -> T:
         # 获取真正要注入的依赖类型
         RealType = get_real_type(other)
         return resolve_at(self, RealType, get_stack_path(1))
 
-    def __rmatmul__(self: type["Inject"], other: type[T]) -> T:
+    def __rmatmul__(self: type['Inject'], other: type[T]) -> T:
         RealType = get_real_type(other)
         ss = get_stack_path(1)
         return resolve_at(self, RealType, get_stack_path(1))
@@ -57,7 +58,7 @@ class Inject(metaclass=AtUsable):
             return find_dependency(InjectType.TYPE, stack_path, DepType=RealType)
 
     @classmethod
-    def Qualifier(cls, name: str) -> type["Inject"]:
+    def Qualifier(cls, name: str) -> type['Inject']:
         """按依赖名注入"""
 
         # 不修改原类，避免后面的受前面的影响

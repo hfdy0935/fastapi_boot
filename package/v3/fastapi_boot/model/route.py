@@ -2,6 +2,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Annotated, Any
+
 from fastapi import Response
 from fastapi.datastructures import Default
 from fastapi.params import Depends
@@ -12,7 +13,6 @@ from fastapi.utils import generate_unique_id
 
 from fastapi_boot.enums import RequestMethodEnum, RequestMethodStrEnum
 
-
 # ------------------------------------------------------- 请求参数 ------------------------------------------------------- #
 
 
@@ -20,31 +20,31 @@ from fastapi_boot.enums import RequestMethodEnum, RequestMethodStrEnum
 class SpecificHttpRouteItemWithoutEndpointAndMethods:
     """具体请求参数，没有endpoint和methods"""
 
-    path: Annotated[str, "路径"] = ""
-    response_model: Annotated[Any, "响应类型"] = None
-    status_code: Annotated[int | None, "响应状态码"] = None
-    tags: Annotated[list[str | Enum] | None, "路由标签，自定义"] = field(default_factory=list)
-    dependencies: Annotated[Sequence[Any] | None, "依赖"] = None
-    summary: Annotated[str | None, "路由概要，自定义"] = None
-    description: Annotated[str | None, "路由描述，自定义"] = None
-    response_description: Annotated[str, "响应结果描述"] = "Successful Response"
-    responses: Annotated[dict[int | str, dict[str, Any]] | None, "响应"] = None
-    deprecated: Annotated[bool | None, "是否已弃用"] = None
-    operation_id: Annotated[str | None, "处理id"] = None
-    response_model_include: Annotated[IncEx | None, "包括的响应类型"] = None
-    response_model_exclude: Annotated[IncEx | None, "排除的响应类型"] = None
-    response_model_by_alias: Annotated[bool, "别名响应类型"] = True
-    response_model_exclude_unset: Annotated[bool, "是否排除非默认响应类型"] = False
-    response_model_exclude_defaults: Annotated[bool, "是否排除默认响应类型"] = False
-    response_model_exclude_none: Annotated[bool, "是否排除空的响应类型"] = False
-    include_in_schema: Annotated[bool, ""] = True
-    response_class: Annotated[type[Response] | Any, "返回响应的类型"] = field(
+    path: Annotated[str, '路径'] = ''
+    response_model: Annotated[Any, '响应类型'] = None
+    status_code: Annotated[int | None, '响应状态码'] = None
+    tags: Annotated[list[str | Enum] | None, '路由标签，自定义'] = field(default_factory=list)
+    dependencies: Annotated[Sequence[Any] | None, '依赖'] = None
+    summary: Annotated[str | None, '路由概要，自定义'] = None
+    description: Annotated[str | None, '路由描述，自定义'] = None
+    response_description: Annotated[str, '响应结果描述'] = 'Successful Response'
+    responses: Annotated[dict[int | str, dict[str, Any]] | None, '响应'] = None
+    deprecated: Annotated[bool | None, '是否已弃用'] = None
+    operation_id: Annotated[str | None, '处理id'] = None
+    response_model_include: Annotated[IncEx | None, '包括的响应类型'] = None
+    response_model_exclude: Annotated[IncEx | None, '排除的响应类型'] = None
+    response_model_by_alias: Annotated[bool, '别名响应类型'] = True
+    response_model_exclude_unset: Annotated[bool, '是否排除非默认响应类型'] = False
+    response_model_exclude_defaults: Annotated[bool, '是否排除默认响应类型'] = False
+    response_model_exclude_none: Annotated[bool, '是否排除空的响应类型'] = False
+    include_in_schema: Annotated[bool, ''] = True
+    response_class: Annotated[type[Response] | Any, '返回响应的类型'] = field(
         default_factory=lambda: Default(JSONResponse)
     )
-    name: Annotated[str | None, "名"] = None
-    route_class_override: Annotated[type[APIRoute], ""] | None = None
-    openapi_extra: Annotated[dict[str, Any] | None, ""] = None
-    generate_unique_id_function: Annotated[Any, "路由处理函数唯一id的生成函数"] = field(
+    name: Annotated[str | None, '名'] = None
+    route_class_override: Annotated[type[APIRoute], ''] | None = None
+    openapi_extra: Annotated[dict[str, Any] | None, ''] = None
+    generate_unique_id_function: Annotated[Any, '路由处理函数唯一id的生成函数'] = field(
         default_factory=lambda: Default(generate_unique_id)
     )
 
@@ -57,32 +57,32 @@ class SpecificHttpRouteItemWithoutEndpointAndMethods:
 class SpecificHttpRouteItem:
     """具体请求参数，没有methods"""
 
-    path: Annotated[str, "路径"]
-    endpoint: Annotated[Callable, "路由映射方法"]
-    response_model: Annotated[Any, "响应类型"] = None
-    status_code: Annotated[int | None, "响应状态码"] = None
-    tags: Annotated[list[str | Enum] | None, "路由标签，自定义"] = field(default_factory=list)
-    dependencies: Annotated[Sequence[Any] | None, "依赖"] = None
-    summary: Annotated[str | None, "路由概要，自定义"] = None
-    description: Annotated[str | None, "路由描述，自定义"] = None
-    response_description: Annotated[str, "响应结果描述"] = "Successful Response"
-    responses: Annotated[dict[int | str, dict[str, Any]] | None, "响应"] = None
-    deprecated: Annotated[bool | None, "是否已弃用"] = None
-    operation_id: Annotated[str | None, "处理id"] = None
-    response_model_include: Annotated[IncEx | None, "包括的响应类型"] = None
-    response_model_exclude: Annotated[IncEx | None, "排除的响应类型"] = None
-    response_model_by_alias: Annotated[bool, "别名响应类型"] = True
-    response_model_exclude_unset: Annotated[bool, "是否排除非默认响应类型"] = False
-    response_model_exclude_defaults: Annotated[bool, "是否排除默认响应类型"] = False
-    response_model_exclude_none: Annotated[bool, "是否排除空的响应类型"] = False
-    include_in_schema: Annotated[bool, ""] = True
-    response_class: Annotated[type[Response] | Any, "返回响应的类型"] = field(
+    path: Annotated[str, '路径']
+    endpoint: Annotated[Callable, '路由映射方法']
+    response_model: Annotated[Any, '响应类型'] = None
+    status_code: Annotated[int | None, '响应状态码'] = None
+    tags: Annotated[list[str | Enum] | None, '路由标签，自定义'] = field(default_factory=list)
+    dependencies: Annotated[Sequence[Any] | None, '依赖'] = None
+    summary: Annotated[str | None, '路由概要，自定义'] = None
+    description: Annotated[str | None, '路由描述，自定义'] = None
+    response_description: Annotated[str, '响应结果描述'] = 'Successful Response'
+    responses: Annotated[dict[int | str, dict[str, Any]] | None, '响应'] = None
+    deprecated: Annotated[bool | None, '是否已弃用'] = None
+    operation_id: Annotated[str | None, '处理id'] = None
+    response_model_include: Annotated[IncEx | None, '包括的响应类型'] = None
+    response_model_exclude: Annotated[IncEx | None, '排除的响应类型'] = None
+    response_model_by_alias: Annotated[bool, '别名响应类型'] = True
+    response_model_exclude_unset: Annotated[bool, '是否排除非默认响应类型'] = False
+    response_model_exclude_defaults: Annotated[bool, '是否排除默认响应类型'] = False
+    response_model_exclude_none: Annotated[bool, '是否排除空的响应类型'] = False
+    include_in_schema: Annotated[bool, ''] = True
+    response_class: Annotated[type[Response] | Any, '返回响应的类型'] = field(
         default_factory=lambda: Default(JSONResponse)
     )
-    name: Annotated[str | None, "名"] = None
-    route_class_override: Annotated[type[APIRoute], ""] | None = None
-    openapi_extra: Annotated[dict[str, Any] | None, ""] = None
-    generate_unique_id_function: Annotated[Any, "路由处理函数唯一id的生成函数"] = field(
+    name: Annotated[str | None, '名'] = None
+    route_class_override: Annotated[type[APIRoute], ''] | None = None
+    openapi_extra: Annotated[dict[str, Any] | None, ''] = None
+    generate_unique_id_function: Annotated[Any, '路由处理函数唯一id的生成函数'] = field(
         default_factory=lambda: Default(generate_unique_id)
     )
 
@@ -96,43 +96,43 @@ class BaseHttpRouteItemWithoutEndpoint(SpecificHttpRouteItemWithoutEndpointAndMe
     """Req请求参数，没有endpoint"""
 
     methods: Annotated[
-        set[RequestMethodEnum | RequestMethodStrEnum] | list[RequestMethodEnum | RequestMethodStrEnum], "请求方法"
-    ] = field(default_factory=lambda: ["get"])
+        set[RequestMethodEnum | RequestMethodStrEnum] | list[RequestMethodEnum | RequestMethodStrEnum], '请求方法'
+    ] = field(default_factory=lambda: ['get'])
 
 
 @dataclass
 class BaseHttpRouteItem:
     """Req请求参数"""
 
-    endpoint: Annotated[Callable, "路由映射方法"]
-    path: Annotated[str, "路径"] = ""
-    response_model: Annotated[Any, "响应类型"] = None
-    status_code: Annotated[int | None, "响应状态码"] = None
-    tags: Annotated[list[str | Enum] | None, "路由标签，自定义"] = field(default_factory=list)
-    dependencies: Annotated[Sequence[Any] | None, "依赖"] = None
-    summary: Annotated[str | None, "路由概要，自定义"] = None
-    description: Annotated[str | None, "路由描述，自定义"] = None
-    response_description: Annotated[str, "响应结果描述"] = "Successful Response"
-    responses: Annotated[dict[int | str, dict[str, Any]] | None, "响应"] = None
-    deprecated: Annotated[bool | None, "是否已弃用"] = None
+    endpoint: Annotated[Callable, '路由映射方法']
+    path: Annotated[str, '路径'] = ''
+    response_model: Annotated[Any, '响应类型'] = None
+    status_code: Annotated[int | None, '响应状态码'] = None
+    tags: Annotated[list[str | Enum] | None, '路由标签，自定义'] = field(default_factory=list)
+    dependencies: Annotated[Sequence[Any] | None, '依赖'] = None
+    summary: Annotated[str | None, '路由概要，自定义'] = None
+    description: Annotated[str | None, '路由描述，自定义'] = None
+    response_description: Annotated[str, '响应结果描述'] = 'Successful Response'
+    responses: Annotated[dict[int | str, dict[str, Any]] | None, '响应'] = None
+    deprecated: Annotated[bool | None, '是否已弃用'] = None
     methods: Annotated[
-        set[RequestMethodEnum | RequestMethodStrEnum] | list[RequestMethodEnum | RequestMethodStrEnum], "请求方法"
-    ] = field(default_factory=lambda: ["get"])
-    operation_id: Annotated[str | None, "处理id"] = None
-    response_model_include: Annotated[IncEx | None, "包括的响应类型"] = None
-    response_model_exclude: Annotated[IncEx | None, "排除的响应类型"] = None
-    response_model_by_alias: Annotated[bool, "别名响应类型"] = True
-    response_model_exclude_unset: Annotated[bool, "是否排除非默认响应类型"] = False
-    response_model_exclude_defaults: Annotated[bool, "是否排除默认响应类型"] = False
-    response_model_exclude_none: Annotated[bool, "是否排除空的响应类型"] = False
-    include_in_schema: Annotated[bool, ""] = True
-    response_class: Annotated[type[Response] | Any, "返回响应的类型"] = field(
+        set[RequestMethodEnum | RequestMethodStrEnum] | list[RequestMethodEnum | RequestMethodStrEnum], '请求方法'
+    ] = field(default_factory=lambda: ['get'])
+    operation_id: Annotated[str | None, '处理id'] = None
+    response_model_include: Annotated[IncEx | None, '包括的响应类型'] = None
+    response_model_exclude: Annotated[IncEx | None, '排除的响应类型'] = None
+    response_model_by_alias: Annotated[bool, '别名响应类型'] = True
+    response_model_exclude_unset: Annotated[bool, '是否排除非默认响应类型'] = False
+    response_model_exclude_defaults: Annotated[bool, '是否排除默认响应类型'] = False
+    response_model_exclude_none: Annotated[bool, '是否排除空的响应类型'] = False
+    include_in_schema: Annotated[bool, ''] = True
+    response_class: Annotated[type[Response] | Any, '返回响应的类型'] = field(
         default_factory=lambda: Default(JSONResponse)
     )
-    name: Annotated[str | None, "名"] = None
-    route_class_override: Annotated[type[APIRoute], ""] | None = None
-    openapi_extra: Annotated[dict[str, Any] | None, ""] = None
-    generate_unique_id_function: Annotated[Any, "路由处理函数唯一id的生成函数"] = field(
+    name: Annotated[str | None, '名'] = None
+    route_class_override: Annotated[type[APIRoute], ''] | None = None
+    openapi_extra: Annotated[dict[str, Any] | None, ''] = None
+    generate_unique_id_function: Annotated[Any, '路由处理函数唯一id的生成函数'] = field(
         default_factory=lambda: Default(generate_unique_id)
     )
 
@@ -158,8 +158,8 @@ class WebSocketRouteItemWithoutEndpoint:
 class WebSocketRouteItem:
     """websocket请求参数"""
 
+    endpoint: Annotated[Callable, '路由映射方法']
     path: str
-    endpoint: Annotated[Callable, "路由映射方法"]
     name: str | None = None
     dependencies: Sequence[Depends] | None = None
 
@@ -191,6 +191,13 @@ class PrefixRouteRecord:
         cls (type): 装饰的类
     """
 
-    api_routes: list["EndpointRouteRecord| PrefixRouteRecord"]
+    api_routes: list['EndpointRouteRecord| PrefixRouteRecord']
     cls: type
     prefix: str = ""
+
+
+# ------------------------------------------------ 主应用中的Controller记录，用于rpc ----------------------------------------------- #
+@dataclass
+class ControllerRecord:
+    instance: Any
+    route_record: BaseHttpRouteItem | WebSocketRouteItem

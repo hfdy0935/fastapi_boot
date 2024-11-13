@@ -20,7 +20,7 @@ export default defineConfig({
         darkModeSwitchLabel: "外观",
         sidebarMenuLabel: "菜单",
         returnToTopLabel: "回到顶部",
-        outline: [2, 6],
+        outline: [1, 6],
         outlineTitle: "本页目录",
         lightModeSwitchTitle: "切换为浅色模式",
         darkModeSwitchTitle: "切换为深色模式",
@@ -46,7 +46,16 @@ export default defineConfig({
         sidebar: [
             {
                 text: "v3",
-                link: "/tutorial/v3",
+                items:[
+                    {
+                        text:'主要用法',
+                        link: "/tutorial/v3",
+                    },
+                    {
+                        text:'2024-11-11更新',
+                        link:'/tutorial/v3/update_20241111.md'
+                    }
+                ]
             },
             {
                 text: "v2",

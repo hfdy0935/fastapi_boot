@@ -1,21 +1,17 @@
-import time
-from typing import Any, TypeVar
-from collections.abc import Callable
 import inspect
-from inspect import Parameter
-from typing import (
-    TypeVar,
-    Annotated,
-)
+import time
 import typing
+from collections.abc import Callable
+from inspect import Parameter
+from typing import Annotated, Any, TypeVar
 
 from fastapi_boot.constants import DECORATED_FUNCTION_WRAPS_CLS
-from fastapi_boot.globalvar import GlobalVar
 from fastapi_boot.enums import DepInjectPos, DepPos, InjectType
 from fastapi_boot.exception import AppNotFoundException, InjectFailException
+from fastapi_boot.globalvar import GlobalVar
 from fastapi_boot.model.scan import InjectParamsResult, Symbol
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 
 def get_dep_pos(stack_path: str) -> DepPos:
@@ -130,13 +126,13 @@ def find_dependency(
     # 开始寻找依赖
     start = time.time()
     while True:
-        print("\r", end="")
+        print('\r', end="")
         res = find_dependency_once(inject_type, stack_path, DepType, name, dep_type_name)
         if res:
             return res
         time.sleep(0.1)
         if timeout_second > 0 and time.time() - start > timeout_second:
-            raise InjectFailException(f"扫描超时，{msg} 的依赖未找到，位置： {stack_path}")
+            raise InjectFailException(f'扫描超时，{msg} 的依赖未找到，位置： {stack_path}')
 
 
 # ---------------------------------------------------- 处理Annotated中的Forward字符串表示的类型 ---------------------------------------------------- #
@@ -222,7 +218,7 @@ def try_resolve_init_params(
             pass
         elif v.annotation == inspect._empty:
             # 如果没类型，直接报错
-            raise Exception(f"找不到参数类型也没有默认值，{k}，位置：{Symbol.from_obj(func).pos}")
+            raise Exception(f'找不到参数类型也没有默认值，{k}，位置：{Symbol.from_obj(func).pos}')
         # 有类型，尝试注入
         else:
             ok = handle_has_annotations_condition(k, v, params, stack_path, dep_inject_pos)

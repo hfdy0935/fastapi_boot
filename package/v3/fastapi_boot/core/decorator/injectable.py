@@ -1,18 +1,15 @@
-from functools import wraps
 import inspect
-from typing import (
-    TypeVar,
-    no_type_check,
-    overload,
-)
+from functools import wraps
 from inspect import isclass
+from typing import TypeVar, no_type_check, overload
+
 from fastapi_boot.constants import DECORATED_FUNCTION_WRAPS_CLS
-from fastapi_boot.globalvar import GlobalVar
 from fastapi_boot.enums import DepPos
+from fastapi_boot.globalvar import GlobalVar
 from fastapi_boot.model.scan import DepRecord, MountedTask, Symbol
 from fastapi_boot.utils.deps import get_dep_pos, try_resolve_other_init_params
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 
 def resolve_inject_task(cls: type, name: str | None = None):
@@ -30,14 +27,14 @@ def resolve_inject_task(cls: type, name: str | None = None):
     dep_pos = get_dep_pos(symbol.stack_path)
     # 类的__init__的参数，这里去掉self
     init_params = inspect.signature(cls.__init__).parameters
-    init_params_dict = {k: v for k, v in init_params.items() if k != "self"}
+    init_params_dict = {k: v for k, v in init_params.items() if k != 'self'}
 
     # 保持原类的属性等
     @wraps(cls)
     def decorator(*args, **kwds):
         # 把原类名属性设置为对应方法的全局变量，否则在方法中使用原类名变量会报错找不到
         for v in cls.__dict__.values():
-            if hasattr(v, "__globals__"):
+            if hasattr(v, '__globals__'):
                 v.__globals__[cls.__name__] = cls
         return cls(*args, **kwds)
 

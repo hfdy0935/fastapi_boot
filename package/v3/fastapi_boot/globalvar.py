@@ -1,17 +1,20 @@
+from collections.abc import Callable
 from typing import Generic, TypeVar
+
 from fastapi_boot.exception import AppNotFoundException, InjectFailException
-from fastapi_boot.model.scan import DepRecord, NoAppDepRecord, ModRecord, MountedTask, NoAppDepRecord
+from fastapi_boot.model.scan import DepRecord, ModRecord, MountedTask, NoAppDepRecord
 
-
-T = TypeVar("T")
+T = TypeVar('T')
 
 
 class GlobalVar(Generic[T]):
     # -------------------------------------------------------- 子应用 ------------------------------------------------------- #
     # 子应用列表
     __app_list: list = []
-    # 子应用任务列表，子应用还没创建，但后面肯定会创建
-    __app_task_list: list[MountedTask] = []
+    # 根据stack_path判断运行的子应用任务列表，还没创建，等后面创建之后会运行
+    __app_stack_path_task_list: list[MountedTask] = []
+    # 根据server_name创建运行的子应用任务字典，还没创建，等后面创建之后会运行
+    __app_server_name_task_dict: dict[str, list[Callable]] = {}
 
     @staticmethod
     def get_app(path: str):
@@ -25,7 +28,7 @@ class GlobalVar(Generic[T]):
         """
         if len(res := [app for app in GlobalVar.__app_list if app.mod.is_super_of_stack_path(path)]) > 0:
             return res[0]
-        raise AppNotFoundException(AppNotFoundException.msg + f"，位置：{path}")
+        raise AppNotFoundException(AppNotFoundException.msg + f'，位置：{path}')
 
     @staticmethod
     def get_all_apps():
@@ -36,19 +39,40 @@ class GlobalVar(Generic[T]):
         """添加一个application"""
         GlobalVar.__app_list.append(app)
 
+    # ------------------------------------------------------ 子应用的任务，适用于还没初始化时暂存在全局 ------------------------------------------------------ #
     @staticmethod
-    def add_app_task(task: MountedTask):
-        """添加子应用的任务"""
-        GlobalVar.__app_task_list.append(task)
+    def add_app_stack_path_task(task: MountedTask):
+        """添加子应用的任务，这时子应用还未创建，只知道任务，等该子应用创建完毕获取任务后执行"""
+        GlobalVar.__app_stack_path_task_list.append(task)
 
     @staticmethod
-    def run_app_task(app):
+    def run_app_stack_path_task(app):
         """运行子应用的任务；
-        1. 用于先扫描应用注册后扫描应用的路由时；
+        用于先include_router其他应用的路由且其他路由还未创建时
         """
-        for task in GlobalVar.__app_task_list:
+        for task in GlobalVar.__app_stack_path_task_list:
             if app.mod.is_super_of_stack_path(task.symbol.stack_path):
                 task.run()
+
+    # -------------------------------------------------------- rpc ------------------------------------------------------- #
+    @staticmethod
+    def get_app_by_server_name(server_name: str):
+        """根据server_name获取app"""
+        for app in GlobalVar.__app_list:
+            if app.config.server_name == server_name:
+                return app
+
+    @staticmethod
+    def add_app_server_name_task(server_name: str, task: Callable):
+        """根据服务名给子应用添加任务，子应用这时还没创建"""
+        curr_task = GlobalVar.__app_server_name_task_dict.get(server_name, [])
+        GlobalVar.__app_server_name_task_dict.update({server_name: [*curr_task, task]})
+
+    @staticmethod
+    def run_app_server_name_task(server_name: str):
+        """运行全局根据server_name添加的子应用任务"""
+        for task in GlobalVar.__app_server_name_task_dict.get(server_name, []):
+            task()
 
     # -------------------------------------------------------------------------------------------------------------------- #
     # ------------------------------------------------------- 无app模块的依赖 ------------------------------------------------------- #
@@ -74,8 +98,8 @@ class GlobalVar(Generic[T]):
             return None
         # 如果找到多个
         if l > 1:
-            raise_pos = "\n".join([f"\t{idx}. {i.symbol.pos}" for idx, i in enumerate(find_list, start=1)])
-            raise InjectFailException(f"找到{l}个依赖，注入失败，{raise_msg}，位置：\n{raise_pos}")
+            raise_pos = '\n'.join([f'\t{idx}. {i.symbol.pos}' for idx, i in enumerate(find_list, start=1)])
+            raise InjectFailException(f'找到{l}个依赖，注入失败，{raise_msg}，位置：\n{raise_pos}')
         # 只有一个
         return find_list[0].value
 
@@ -87,7 +111,7 @@ class GlobalVar(Generic[T]):
             # 考虑到Bean返回字符串，类型后定义的情况
             if b.constructor == DepType or b.constructor == DepType.__name__:
                 res.append(b)
-        return GlobalVar._handle_inject_result(res, f"确保类型{DepType.__name__}只对应一个依赖，或使用命名依赖")
+        return GlobalVar._handle_inject_result(res, f'确保类型{DepType.__name__}只对应一个依赖，或使用命名依赖')
 
     @staticmethod
     def inject_by_name(name: str, DepType: type[T]) -> T | None:
@@ -96,7 +120,7 @@ class GlobalVar(Generic[T]):
         for b in GlobalVar.no_app_dep_list:
             if b.name == name and b.constructor == DepType:
                 res.append(b)
-        return GlobalVar._handle_inject_result(res, f"确保依赖名{name}唯一")
+        return GlobalVar._handle_inject_result(res, f'确保依赖名{name}唯一')
 
     @staticmethod
     def inject_by_type_name(type_name) -> T | None:
@@ -110,7 +134,7 @@ class GlobalVar(Generic[T]):
             # 其他情况
             elif b.constructor.__name__ == type_name:
                 res.append(b)
-        return GlobalVar._handle_inject_result(res, f"确保类型{type_name}只对应一个依赖，或使用命名依赖")
+        return GlobalVar._handle_inject_result(res, f'确保类型{type_name}只对应一个依赖，或使用命名依赖')
 
     @staticmethod
     def add_no_app_task(task: MountedTask):

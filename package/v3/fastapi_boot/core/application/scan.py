@@ -1,13 +1,14 @@
-from concurrent.futures import Future, ThreadPoolExecutor
+import concurrent
 import concurrent.futures
 import os
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Final, Generic, TypeVar
-import concurrent
+
 from fastapi_boot.exception import InjectFailException
 from fastapi_boot.globalvar import GlobalVar
 from fastapi_boot.model.scan import DepRecord, ModRecord
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 
 def scan_task(idx: int, ls: list, dot_path: str):
@@ -21,9 +22,9 @@ def scan_task(idx: int, ls: list, dot_path: str):
     Raises:
         e: InjectFailException
     """
-    print("\r" + " " * 120, end="")
+    print('\r' + ' ' * 120, end="")
     print(
-        f"\r正在扫描：{(idx + 1) * 100 / len(ls):.2f}% {dot_path}",
+        f'\r正在扫描：{(idx + 1) * 100 / len(ls):.2f}% {dot_path}',
         end="",
     )
     try:
@@ -82,7 +83,7 @@ class ScanApplication(Generic[T]):
             # 包中的所有模块
             for filename in filenames:
                 # 只扫描.py文件
-                if not filename.endswith(".py"):
+                if not filename.endswith('.py'):
                     continue
                 mod_item = ModRecord(os.path.join(dirpath, filename))
                 should_add = True  # 是否可以添加到扫描路径
@@ -113,7 +114,7 @@ class ScanApplication(Generic[T]):
             # 执行结果
             for future in futures:
                 future.result()
-        print(f"\n\n> >   {self.app.mod.file_dot_path} 扫描完成\n")
+        print(f'\n\n> >   {self.app.mod.file_dot_path} 扫描完成\n')
 
     # ----------------------------------------------------- 注入依赖 ---------------------------------------------------- #
 
@@ -127,11 +128,11 @@ class ScanApplication(Generic[T]):
             T | None: 结果 | None
         """
         res: list[DepRecord[T]] = []
-        for b in self.get_dep_list():
+        for b in [*self.get_dep_list(), *self.app.ra.get_dep_list()]:
             # 考虑到Bean返回字符串，类型后定义的情况
             if b.constructor == DepType or b.constructor == DepType.__name__:
                 res.append(b)
-        return GlobalVar._handle_inject_result(res, f"确保类型{DepType.__name__}只对应一个依赖，或使用命名依赖")
+        return GlobalVar._handle_inject_result(res, f'确保类型{DepType.__name__}只对应一个依赖，或使用命名依赖')
 
     def inject_by_name(self, name: str, DepType: type[T]) -> T | None:
         """根据依赖名注入依赖
@@ -147,7 +148,7 @@ class ScanApplication(Generic[T]):
         for b in self.get_dep_list():
             if b.name == name and b.constructor == DepType:
                 res.append(b)
-        return GlobalVar._handle_inject_result(res, f"确保依赖名{name}唯一")
+        return GlobalVar._handle_inject_result(res, f'确保依赖名{name}唯一')
 
     def inject_by_type_name(self, type_name) -> T | None:
         """根据类型名注入，考虑到使用 '类型' 的方式写类型，得到的是个 typing.ForwardRef 实例，用 __forward_arg__ 取出字符串（类型名）
@@ -168,7 +169,7 @@ class ScanApplication(Generic[T]):
             elif b.constructor.__name__ == type_name:
 
                 res.append(b)
-        return GlobalVar._handle_inject_result(res, f"确保类型{type_name}只对应一个依赖，或使用命名依赖")
+        return GlobalVar._handle_inject_result(res, f'确保类型{type_name}只对应一个依赖，或使用命名依赖')
 
     def scan(self, scan_path: str):
         """开始扫描
