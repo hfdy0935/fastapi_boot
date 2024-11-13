@@ -3,7 +3,7 @@ import dataclasses
 import inspect
 from collections.abc import Callable
 from dataclasses import MISSING, Field, is_dataclass
-from inspect import Parameter, signature
+from inspect import Parameter, isclass, signature
 from typing import Annotated, Any, get_args, get_origin
 
 from fastapi import Depends, Query, params
@@ -37,7 +37,8 @@ class ParameterHandler:
             # a: int = Query()
             case1 = isinstance(self.default, params.Query)
             # a: int
-            case2 = self.default == inspect._empty and issubclass(self.anno, SINGLE_QUERY_PARAM_TYPE)
+            # 得先是类再判断是不是子类，如果是个字面量直接用issubclass就报错了
+            case2 = self.default == inspect._empty and isclass(self.anno) and issubclass(self.anno, SINGLE_QUERY_PARAM_TYPE)
             return case1 or case2
 
     def is_dataclass_query(self):
@@ -52,9 +53,9 @@ class ParameterHandler:
         if not self.is_query():
             return False
         if self.is_annotated():
-            return issubclass(get_args(self.anno)[0], BaseModel)
+            return isclass(get_args(self.anno)[0]) and issubclass(get_args(self.anno)[0], BaseModel)
         else:
-            return issubclass(self.anno, BaseModel)
+            return isclass(self.anno) and issubclass(self.anno, BaseModel)
 
     def is_model_query(self):
         return self.is_dataclass_query() or self.is_pydantic_query()
