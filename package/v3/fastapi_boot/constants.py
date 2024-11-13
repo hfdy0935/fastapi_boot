@@ -2,7 +2,7 @@ import os
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum
 
-from fastapi import Request, Response, params
+from fastapi import params
 from zmq import IntEnum
 
 # 项目所在系统路径，首字母变成大写

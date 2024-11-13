@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from fastapi_boot.constants import CONTROLLER_ROUTE_RECORD
 from fastapi_boot.model.route import BaseHttpRouteItem, BaseHttpRouteItemWithoutEndpoint, EndpointRouteRecord

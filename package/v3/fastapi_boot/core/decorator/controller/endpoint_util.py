@@ -4,7 +4,7 @@ import inspect
 from collections.abc import Callable
 from dataclasses import MISSING, Field, is_dataclass
 from inspect import Parameter, signature
-from typing import Annotated, Any, TypeVar, get_args, get_origin
+from typing import Annotated, Any, get_args, get_origin
 
 from fastapi import Depends, Query, params
 from pydantic import BaseModel
@@ -12,8 +12,6 @@ from pydantic.fields import FieldInfo
 
 from fastapi_boot.constants import MODEL_QUERY_PARAM_FIELD_PREFIX, SINGLE_QUERY_PARAM_TYPE
 from fastapi_boot.model.scan import Symbol
-
-T = TypeVar('T')
 
 
 # ---------------------------------------------------- 参数判断类 --------------------------------------------------- #
@@ -102,7 +100,7 @@ def trans_field_to_parameter(field: Field) -> Parameter:
 
 def gen_query_from_field_info(field_info: FieldInfo) -> params.Query:
     """根据field_info生成query"""
-    # 这些字段获取不到，就不传了
+    # 还有些字段获取不到，就不传了
     return params.Query.from_field(
         default=field_info.default,
         default_factory=field_info.default_factory,
@@ -158,7 +156,7 @@ def resolve_duplicated_query_name(
     """
     for ph in immut_ph_list:
         if ph.is_dataclass_query():
-            # 1. 数据类query参数
+            # 1. dataclass query
             fields_names = [field.name for field in dataclasses.fields(ph.anno)]
             # 排除自己的字段
             if ph.p != param.p and name in fields_names:
@@ -167,7 +165,7 @@ def resolve_duplicated_query_name(
                     f'duplicated query params： "{name}({param.name}.{name})" and "{name}({ph.name}.{name})", position: {symbol.pos}'
                 )
         elif ph.is_pydantic_query():
-            # 2. pydantic query参数
+            # 2. pydantic query
             if ph.p != param.p and issubclass(ph.anno, BaseModel):
                 fields_names = [n for n in ph.anno.model_fields.keys()]
                 if name in fields_names:
@@ -175,7 +173,7 @@ def resolve_duplicated_query_name(
                         f'duplicated query params： "{name}({param.name}.{name})" and "{name}({ph.name}.{name})", position: {symbol.pos}'
                     )
         elif ph.is_query() and ph.name == name:
-            # 3. 是query参数但不是model，即单个普通查询参数
+            # 3. endpoint的单个query
             raise Exception(
                 f'duplicated query params: "{name}({param.name}.{name})" and "{name}", position: {symbol.pos}'
             )
@@ -221,8 +219,8 @@ def trans_base_endpoint(func: Callable, new_params: list[Parameter]):
     """
     # 处理query参数写dataclass类型，只分解一层，查询参数貌似也不可能多层嵌套...
     ph_list = [ParameterHandler(p) for p in new_params]
-    mut_ph_list: list[ParameterHandler] = [ph for ph in ph_list if ph.is_query()]  # 分解前的可变的ph列表
-    immut_ph_list: list[ParameterHandler] = [ph for ph in ph_list if ph.is_query()]  # 分解前的不可变的ph列表
+    mut_ph_list = [ph for ph in ph_list if ph.is_query()]  # 分解前的可变的ph列表
+    immut_ph_list = [ph for ph in ph_list if ph.is_query()]  # 分解前的不可变的ph列表
     # 遍历query参数，分解后添加
     symbol = Symbol.from_obj(func)
     for ph in immut_ph_list:
@@ -256,6 +254,9 @@ def rebuild_query_param(ph_list: list[ParameterHandler], kwds: dict):
             kwds.update({ph.name: ph.anno(**build_args)})
 
 
+# -------------------------------------------------- 以下是其他模块导入用到的函数 -------------------------------------------------- #
+
+
 def trans_cbv_endpoint(func: Callable, instance: Any) -> Callable:
     """处理cbv的endpoint的参数，dep是被装饰的类的实例，所以控制器在每次有请求时就会重新实例化
     ...
@@ -276,16 +277,12 @@ def trans_cbv_endpoint(func: Callable, instance: Any) -> Callable:
     if len(old_params) > 0 and old_params[0].name == 'self':
         old_first_param = old_params[0]
         new_first_param = old_first_param.replace(default=Depends(lambda: instance))
-        new_params: list[Parameter] = [new_first_param] + [
-            p.replace(kind=inspect.Parameter.KEYWORD_ONLY) for p in old_params[1:]
-        ]
+        new_params = [new_first_param] + [p.replace(kind=inspect.Parameter.KEYWORD_ONLY) for p in old_params[1:]]
     else:
         # 没有self，不处理
         new_params = old_params
     # 原始的类型为dataclass/pydantic的查询参数ph列表，用于收到结果时重建原类
-    model_query_ph_list: list[ParameterHandler] = [
-        ph for p in new_params if (ph := ParameterHandler(p)).is_model_query()
-    ]
+    model_query_ph_list = [ph for p in new_params if (ph := ParameterHandler(p)).is_model_query()]
     trans_base_endpoint(func, new_params)
 
     # 替换原方法
@@ -307,7 +304,7 @@ def trans_fbv_endpoint(endpoint: Callable):
     """
     old_sign = signature(endpoint)
     params = list(old_sign.parameters.values())
-    model_query_ph_list: list[ParameterHandler] = [ph for p in params if (ph := ParameterHandler(p)).is_model_query()]
+    model_query_ph_list = [ph for p in params if (ph := ParameterHandler(p)).is_model_query()]
     trans_base_endpoint(endpoint, params)
 
     # 替换原方法

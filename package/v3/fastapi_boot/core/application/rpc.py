@@ -7,7 +7,7 @@ from fastapi_boot.model.scan import DepRecord
 class RpcApplication:
     """远程调用相关的"""
 
-    def __init__(self) -> None:
+    def __init__(self):
         # 控制器记录字典
         self.__controller_route_records_dict: dict[str, ControllerRecord] = {}
         # RpcClient的依赖
