@@ -42,7 +42,7 @@ def resolve_inject_task(cls: type, name: str | None = None):
     setattr(decorator, DECORATED_FUNCTION_WRAPS_CLS, cls)
 
     def task():
-        func_params_res = try_resolve_other_init_params(decorator, init_params_dict, symbol.stack_path)
+        func_params_res = try_resolve_other_init_params(decorator, init_params_dict, symbol)
         if func_params_res.ok:
             # 可以初始化
             instance = decorator(**func_params_res.params)
@@ -77,12 +77,10 @@ def Injectable(value: type[T]): ...
 def Injectable(value: str | type[T]) -> type[T]:
     """装饰一个类，将其手机为依赖"""
     if isclass(value):
-        decorator = resolve_inject_task(value)
-        return decorator
+        return resolve_inject_task(value)
     else:
 
         def wrapper(cls: type[T]):
-            decorator = resolve_inject_task(cls=cls, name=value)
-            return decorator
+            return resolve_inject_task(cls=cls, name=value)
 
         return wrapper

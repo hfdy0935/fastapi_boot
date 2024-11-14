@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 
 from fastapi_boot.constants import REQ_DEP_PLACEHOLDER
 from fastapi_boot.model.route import BaseHttpRouteItem, WebSocketRouteItem
-from fastapi_boot.model.scan import InjectParamsResult
+from fastapi_boot.model.scan import InjectParamsResult, Symbol
 from fastapi_boot.utils.deps import try_resolve_controller_init_params
 from fastapi_boot.utils.pure import trans_path
 
@@ -66,12 +66,12 @@ def resolve_req_dependencies(cls: type[Any], proj_deps_dict: dict[str, Any]):
     setattr(cls, '__init__', new_init)
 
 
-def resolve_proj_deps(cls: Any, stack_path: str) -> tuple[InjectParamsResult, Callable]:
+def inject_proj_deps(cls: Any, symbol: Symbol) -> tuple[InjectParamsResult, Callable]:
     """注入项目中的依赖
 
     Args:
         cls (Any): 所在的类
-        stack_path (str): 调用栈文件系统路径
+        symbol (Symbol): 调用栈文件系统路径
 
     Returns:
         tuple[InjectParamsResult, Callable]: tuple(注入的结果，该类被wraps装饰后的函数)
@@ -83,7 +83,7 @@ def resolve_proj_deps(cls: Any, stack_path: str) -> tuple[InjectParamsResult, Ca
 
     init_params = inspect.signature(cls.__init__).parameters
     init_params_dict = {k: v for k, v in init_params.items() if k != 'self'}
-    res = try_resolve_controller_init_params(decorator, init_params_dict, stack_path)
+    res = try_resolve_controller_init_params(decorator, init_params_dict, symbol)
     return res, decorator
 
 

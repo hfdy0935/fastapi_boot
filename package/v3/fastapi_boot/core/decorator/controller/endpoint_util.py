@@ -1,4 +1,3 @@
-# ----------------------------------------------- 处理controller的endpoint ---------------------------------------------- #
 import dataclasses
 import inspect
 from collections.abc import Callable
@@ -38,7 +37,9 @@ class ParameterHandler:
             case1 = isinstance(self.default, params.Query)
             # a: int
             # 得先是类再判断是不是子类，如果是个字面量直接用issubclass就报错了
-            case2 = self.default == inspect._empty and isclass(self.anno) and issubclass(self.anno, SINGLE_QUERY_PARAM_TYPE)
+            case2 = (
+                self.default == inspect._empty and isclass(self.anno) and issubclass(self.anno, SINGLE_QUERY_PARAM_TYPE)
+            )
             return case1 or case2
 
     def is_dataclass_query(self):
@@ -231,8 +232,8 @@ def trans_base_endpoint(func: Callable, new_params: list[Parameter]):
     # 删除原来的query参数
     for ph in immut_ph_list:
         new_params.remove(ph.p)
-    # 添加分解后的参数
-    new_params.extend([ph.p for ph in mut_ph_list])
+    # 添加分解后的参数，把类型都变成关键字
+    new_params.extend([ph.p.replace(kind=Parameter.KEYWORD_ONLY) for ph in mut_ph_list])
 
 
 def rebuild_query_param(ph_list: list[ParameterHandler], kwds: dict):
@@ -256,47 +257,6 @@ def rebuild_query_param(ph_list: list[ParameterHandler], kwds: dict):
 
 
 # -------------------------------------------------- 以下是其他模块导入用到的函数 -------------------------------------------------- #
-
-
-def trans_cbv_endpoint(func: Callable, instance: Any) -> Callable:
-    """处理cbv的endpoint的参数，dep是被装饰的类的实例，所以控制器在每次有请求时就会重新实例化
-    ...
-
-    Args:
-        func (Callable): 路由请求映射方法
-        instance (Any): 需要把这个方法的self变成谁的实例
-
-    Raises:
-        Exception: 参数名重复
-
-    Returns:
-        Callable: 新的endpoint
-    """
-    old_sign = signature(func)
-    old_params = list(old_sign.parameters.values())
-    # 如果第一个参数是self，替换成所在的实例
-    if len(old_params) > 0 and old_params[0].name == 'self':
-        old_first_param = old_params[0]
-        new_first_param = old_first_param.replace(default=Depends(lambda: instance))
-        new_params = [new_first_param] + [p.replace(kind=inspect.Parameter.KEYWORD_ONLY) for p in old_params[1:]]
-    else:
-        # 没有self，不处理
-        new_params = old_params
-    # 原始的类型为dataclass/pydantic的查询参数ph列表，用于收到结果时重建原类
-    model_query_ph_list = [ph for p in new_params if (ph := ParameterHandler(p)).is_model_query()]
-    trans_base_endpoint(func, new_params)
-
-    # 替换原方法
-    def new_func(self, *args, **kwds):
-        # 从kwds中弹出分解后的query参数，初始化原类，再加回来
-        rebuild_query_param(model_query_ph_list, kwds)
-        return func(self, *args, **kwds)
-
-    new_sign = old_sign.replace(parameters=new_params)
-    setattr(new_func, '__signature__', new_sign)
-    return new_func
-
-
 def trans_fbv_endpoint(endpoint: Callable):
     """处理fbv的endpoint的参数
 
@@ -317,3 +277,42 @@ def trans_fbv_endpoint(endpoint: Callable):
     new_sign = old_sign.replace(parameters=params)
     setattr(new_func, '__signature__', new_sign)
     return new_func
+
+
+def trans_cbv_endpoint(endpoint: Callable, cls: type) -> Callable:
+    """处理cbv的endpoint的参数，dep是被装饰的类的实例，所以控制器在每次有请求时就会重新实例化
+    ...
+
+    Args:
+        endpoint (Callable): 路由请求映射方法
+        cls (type): 需要把这个方法的self变成谁的实例
+
+    Raises:
+        Exception: 参数名重复
+
+    Returns:
+        Callable: 新的endpoint
+    """
+    old_sign = signature(endpoint)
+    old_params = list(old_sign.parameters.values())
+    # 如果第一个参数是self，替换成所在的实例
+    if len(old_params) > 0 and old_params[0].name == 'self':
+        old_first_param = old_params[0]
+        new_first_param = old_first_param.replace(default=Depends(cls))
+        new_params = [new_first_param, *[p.replace(kind=inspect.Parameter.KEYWORD_ONLY) for p in old_params[1:]]]
+        # 原始的类型为dataclass/pydantic的查询参数ph列表，用于收到结果时重建原类
+        model_query_ph_list = [ph for p in new_params if (ph := ParameterHandler(p)).is_model_query()]
+        trans_base_endpoint(endpoint, new_params)
+
+        # 替换原方法
+        def new_func(self, *args, **kwds):
+            # 从kwds中弹出分解后的query参数，初始化原类，再加回来
+            rebuild_query_param(model_query_ph_list, kwds)
+            return endpoint(self, *args, **kwds)
+
+        new_sign = old_sign.replace(parameters=new_params)
+        setattr(new_func, '__signature__', new_sign)
+        return new_func
+    else:
+        # 没有self，按fbv处理
+        return trans_fbv_endpoint(endpoint)

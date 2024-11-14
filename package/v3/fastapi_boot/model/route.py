@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Annotated, Any
 
+from click import Parameter
 from fastapi import Response
 from fastapi.datastructures import Default
 from fastapi.params import Depends
@@ -199,5 +200,6 @@ class PrefixRouteRecord:
 # ------------------------------------------------ 主应用中的Controller记录，用于rpc ----------------------------------------------- #
 @dataclass
 class ControllerRecord:
-    instance: Any
-    route_record: BaseHttpRouteItem | WebSocketRouteItem
+    instance: Any # 没有usedep的时候创建的实例
+    use_dep_params:list[Parameter] # usedep的参数
+    route_record: BaseHttpRouteItem | WebSocketRouteItem # 路由记录

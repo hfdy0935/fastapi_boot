@@ -4,7 +4,6 @@ import os
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Final, Generic, TypeVar
 
-from fastapi_boot.exception import InjectFailException
 from fastapi_boot.globalvar import GlobalVar
 from fastapi_boot.model.scan import DepRecord, ModRecord
 
@@ -27,10 +26,7 @@ def scan_task(idx: int, ls: list, dot_path: str):
         f'\r正在扫描：{(idx + 1) * 100 / len(ls):.2f}% {dot_path}',
         end="",
     )
-    try:
-        __import__(dot_path)
-    except InjectFailException as e:
-        raise e
+    __import__(dot_path)
 
 
 class ScanApplication(Generic[T]):
@@ -128,7 +124,7 @@ class ScanApplication(Generic[T]):
             T | None: 结果 | None
         """
         res: list[DepRecord[T]] = []
-        for b in [*self.get_dep_list(), *self.app.ra.get_dep_list()]:
+        for b in [*self.get_dep_list()]:
             # 考虑到Bean返回字符串，类型后定义的情况
             if b.constructor == DepType or b.constructor == DepType.__name__:
                 res.append(b)

@@ -24,7 +24,7 @@ def resolve_bean_task(func: Callable, name: str | None = None):
     params_dict = {k: v for k, v in inspect.signature(func).parameters.items()}
 
     def task():
-        func_params_res = try_resolve_other_init_params(func, params_dict, symbol.stack_path)
+        func_params_res = try_resolve_other_init_params(func, params_dict, symbol)
         if func_params_res.ok:
             # 可以调用
             instance = func(**func_params_res.params)

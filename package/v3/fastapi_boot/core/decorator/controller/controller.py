@@ -14,8 +14,9 @@ from fastapi_boot.constants import CBV_ENDPOINT, CONTROLLER_ROUTE_RECORD, Contro
 from fastapi_boot.core.decorator.controller.endpoint_util import trans_cbv_endpoint, trans_fbv_endpoint
 from fastapi_boot.core.decorator.controller.hook_util import (
     add_single_api_route,
-    resolve_proj_deps,
+    inject_proj_deps,
     resolve_req_dependencies,
+    resolve_use_router_path,
 )
 from fastapi_boot.enums import RequestMethodEnum, RequestMethodStrEnum
 from fastapi_boot.globalvar import GlobalVar
@@ -29,7 +30,7 @@ T = TypeVar('T')
 def resolve_endpoint(
     ctrl: 'Controller',
     route_record: EndpointRouteRecord,
-    instance: Any,
+    cls: type[T],
     total_route_list: list[BaseHttpRouteItem | WebSocketRouteItem],
 ):
     """把endpoint挂载到控制器上
@@ -37,12 +38,12 @@ def resolve_endpoint(
     Args:
         ctrl (Controller): 控制器实例
         route_record (EndpointRouteRecord): 路由记录
-        instance (Any): 该endpoint所在的类的实例，用于初始化它的self
+        cls (type): 该endpoint所在的类，用于初始化它的self
         total_route_list (list[BaseHttpRouteItem | WebSocketRouteItem]): 控制器的所有请求记录
     """
     api_route = route_record.api_route
     # 处理参数
-    api_route.endpoint = trans_cbv_endpoint(api_route.endpoint, instance)
+    api_route.endpoint = trans_cbv_endpoint(api_route.endpoint, cls)
     # 记录是类的请求方法
     setattr(api_route.endpoint, CBV_ENDPOINT, True)
     total_route_list.append(api_route)
@@ -54,7 +55,7 @@ def resolve_endpoint(
 def resolve_prefix(
     ctrl: 'Controller',
     route_record: PrefixRouteRecord,
-    stack_path: str,
+    symbol: Symbol,
     total_route_list: list[BaseHttpRouteItem | WebSocketRouteItem],
 ):
     """处理Prefix装饰的类
@@ -62,12 +63,12 @@ def resolve_prefix(
     Args:
         ctrl (Controller): Controlelr实例
         route_record (PrefixRouteRecord): 路由记录
-        stack_path (str): 调用栈文件系统路径
+        symbol (Symbol): 调用位置
         total_route_list (list[BaseHttpRouteItem | WebSocketRouteItem]): 控制器的所有请求路径，每添加一个endpoint就累积
     """
     cls = route_record.cls
     # 先注入项目的依赖
-    res, _ = resolve_proj_deps(cls, stack_path)
+    res, _ = inject_proj_deps(cls, symbol)
     # 再修__init__中项目依赖的参数的kind和default，以及处理请求的依赖
     resolve_req_dependencies(cls, res.params)
     # 挂载路由
@@ -76,7 +77,7 @@ def resolve_prefix(
             resolve_endpoint(ctrl, api_route, cls, total_route_list)
         elif isinstance(api_route, PrefixRouteRecord):
             # 把该prefix下的子endpoint路由的self挂载到它装饰的类的实例
-            resolve_prefix(ctrl, api_route, stack_path, total_route_list)
+            resolve_prefix(ctrl, api_route, symbol, total_route_list)
 
 
 # ----------------------------------------------------- 控制器挂载到应用 ---------------------------------------------------- #
@@ -96,7 +97,6 @@ def mount_router_and_add_controller(symbol: Symbol, ctrl: 'Controller'):
         # 前面没收集前缀，这里需要加上Controller的prefix
         for r in ctrl.total_route_record_list:
             r.path = ctrl.prefix + r.path
-        app.ra.add_controller_route_records(ctrl)
 
     try:
         task()
@@ -147,8 +147,6 @@ class Controller(APIRouter, Generic[T]):
             include_in_schema=include_in_schema,
             generate_unique_id_function=generate_unique_id_function,
         )
-        # 被装饰的实例/函数，用于rpc时获取
-        self.decorated_instance = None
         # 总的路由记录列表，挂载过程中不断累积，用于匹配use_router的路径、提取路由记录用于rpc
         self.total_route_record_list: list[BaseHttpRouteItem | WebSocketRouteItem] = []
 
@@ -156,11 +154,9 @@ class Controller(APIRouter, Generic[T]):
     def __call__(self, cls: type[T]) -> T:
         symbol = Symbol.from_obj(cls)
         # 先注入项目的依赖
-        res, decorator = resolve_proj_deps(cls, symbol.stack_path)
-        # 再修__init__中项目依赖的参数的kind和default，以及处理请求的依赖
+        res, decorator = inject_proj_deps(cls, symbol)
+        # 再修改__init__中项目依赖的参数的kind和default，以及处理请求的依赖
         resolve_req_dependencies(cls, res.params)
-        # 控制器装饰的类的实例
-        self.decorated_instance = cls()
         # 需要替换的use_router静态属性名
         use_router_dict: dict[str, list[str]] = {}
         # 遍历，挂载，处理self
@@ -170,10 +166,10 @@ class Controller(APIRouter, Generic[T]):
                 use_router_dict.update({k: v.paths})
             elif hasattr(v, CONTROLLER_ROUTE_RECORD) and (attr := getattr(v, CONTROLLER_ROUTE_RECORD)):
                 if isinstance(attr, EndpointRouteRecord):
-                    resolve_endpoint(self, attr, self.decorated_instance, self.total_route_record_list)
+                    resolve_endpoint(self, attr, cls, self.total_route_record_list)
                 elif isinstance(attr, PrefixRouteRecord):
                     # prefix内的endpoint的self指向prefix装饰的类的实例
-                    resolve_prefix(self, attr, symbol.stack_path, self.total_route_record_list)
+                    resolve_prefix(self, attr, symbol, self.total_route_record_list)
         # 替换use_router
         for k, v in use_router_dict.items():
             setattr(decorator, k, resolve_use_router_path(v, self.prefix, self.total_route_record_list))
@@ -200,7 +196,6 @@ class Controller(APIRouter, Generic[T]):
                     # -------------------------------------------------------------------------------------------------------------------- #
                     # 查询参数处理，可以用dataclass、pydantic model
                     new_endpoint = trans_fbv_endpoint(endpoint)
-                    self.decorated_instance = new_endpoint
                     if k.upper() == RequestMethodEnum.WEBSOCKET:
                         self.total_route_record_list = [WebSocketRouteItem(new_endpoint, *args, **kwds)]
                         add_single_api_route(self.total_route_record_list[0], self)

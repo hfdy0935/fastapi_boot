@@ -49,6 +49,10 @@ RPC_REPLACE_DEFAULT_TYPE = (
     params.Form,
     params.File,
 )
+# endpoint的path和method的连接符，用于rpc时找对应的路由记录
+PATH_METHOD_CONNECTOR=':'
+
+# -------------------------------------------- 处理dataclass/BaseModel的查询参数 -------------------------------------------- #
 # 无默认值的占位符
 from pydantic.version import VERSION as PYDANTIC_VERSION
 

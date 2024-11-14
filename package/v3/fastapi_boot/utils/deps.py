@@ -193,14 +193,14 @@ def handle_has_annotations_condition(
 
 
 def try_resolve_init_params(
-    func: Callable[..., T], parameters: dict[str, Parameter], stack_path: str, dep_inject_pos: DepInjectPos
+    func: Callable[..., T], parameters: dict[str, Parameter], symbol: Symbol, dep_inject_pos: DepInjectPos
 ) -> InjectParamsResult:
     """尝试注入Bean装饰的函数或Injectable等装饰的类 的 所有依赖
 
     Args:
         func (Callable[...,T]): （1）函数；（2）被包装的函数，返回类的实例
         parameters (dict[str,Parameter]): 第二种情况的func的参数是*args、**kwds，所以要把原来类的__init__方法的参数去掉self传进来
-        stack_path (str): 调用栈所在文件系统路径
+        symbol (Symbol): 调用栈所在文件系统路径
         dep_inject_pos (DepInjectPos): 依赖注入的位置，控制器还是其他位置
 
     Returns:
@@ -218,21 +218,21 @@ def try_resolve_init_params(
             pass
         elif v.annotation == inspect._empty:
             # 如果没类型，直接报错
-            raise Exception(f'找不到参数类型也没有默认值，{k}，位置：{Symbol.from_obj(func).pos}')
+            raise Exception(f'找不到参数类型也没有默认值，{k}，位置：{symbol.pos}')
         # 有类型，尝试注入
         else:
-            ok = handle_has_annotations_condition(k, v, params, stack_path, dep_inject_pos)
+            ok = handle_has_annotations_condition(k, v, params, symbol.stack_path, dep_inject_pos)
             if not ok:
                 break
     # 不成功就返回空有序字典
     return InjectParamsResult(ok=ok, params=params if ok else {})
 
 
-def try_resolve_controller_init_params(func: Callable[..., T], parameters: dict[str, Parameter], stack_path: str):
-    """注入控制器装饰的类的__init__的参数"""
-    return try_resolve_init_params(func, parameters, stack_path, DepInjectPos.CONTROLLER)
+def try_resolve_controller_init_params(func: Callable[..., T], parameters: dict[str, Parameter], symbol: Symbol):
+    """注入控制器装饰的类的__init__的参数，func是装饰函数，运行返回类实例"""
+    return try_resolve_init_params(func, parameters, symbol, DepInjectPos.CONTROLLER)
 
 
-def try_resolve_other_init_params(func: Callable[..., T], parameters: dict[str, Parameter], stack_path: str):
+def try_resolve_other_init_params(func: Callable[..., T], parameters: dict[str, Parameter], symbol: Symbol):
     """在除了控制器的其他位置注入依赖"""
-    return try_resolve_init_params(func, parameters, stack_path, DepInjectPos.OTHER)
+    return try_resolve_init_params(func, parameters, symbol, DepInjectPos.OTHER)

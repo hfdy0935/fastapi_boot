@@ -37,7 +37,6 @@ class AtUsable(type):
 
     def __rmatmul__(self: type['Inject'], other: type[T]) -> T:
         RealType = get_real_type(other)
-        ss = get_stack_path(1)
         return resolve_at(self, RealType, get_stack_path(1))
 
 

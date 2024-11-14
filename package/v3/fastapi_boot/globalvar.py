@@ -13,8 +13,6 @@ class GlobalVar(Generic[T]):
     __app_list: list = []
     # 根据stack_path判断运行的子应用任务列表，还没创建，等后面创建之后会运行
     __app_stack_path_task_list: list[MountedTask] = []
-    # 根据server_name创建运行的子应用任务字典，还没创建，等后面创建之后会运行
-    __app_server_name_task_dict: dict[str, list[Callable]] = {}
 
     @staticmethod
     def get_app(path: str):
@@ -53,26 +51,6 @@ class GlobalVar(Generic[T]):
         for task in GlobalVar.__app_stack_path_task_list:
             if app.mod.is_super_of_stack_path(task.symbol.stack_path):
                 task.run()
-
-    # -------------------------------------------------------- rpc ------------------------------------------------------- #
-    @staticmethod
-    def get_app_by_server_name(server_name: str):
-        """根据server_name获取app"""
-        for app in GlobalVar.__app_list:
-            if app.config.server_name == server_name:
-                return app
-
-    @staticmethod
-    def add_app_server_name_task(server_name: str, task: Callable):
-        """根据服务名给子应用添加任务，子应用这时还没创建"""
-        curr_task = GlobalVar.__app_server_name_task_dict.get(server_name, [])
-        GlobalVar.__app_server_name_task_dict.update({server_name: [*curr_task, task]})
-
-    @staticmethod
-    def run_app_server_name_task(server_name: str):
-        """运行全局根据server_name添加的子应用任务"""
-        for task in GlobalVar.__app_server_name_task_dict.get(server_name, []):
-            task()
 
     # -------------------------------------------------------------------------------------------------------------------- #
     # ------------------------------------------------------- 无app模块的依赖 ------------------------------------------------------- #

@@ -1,6 +1,4 @@
-from inspect import isclass
-from typing import TypeVar, no_type_check
-
+from typing import TypeVar
 from fastapi_boot.constants import CONTROLLER_ROUTE_RECORD
 from fastapi_boot.model.route import EndpointRouteRecord, PrefixRouteRecord
 from fastapi_boot.utils.pure import trans_path
@@ -23,17 +21,24 @@ def update_prefix_prefix(prefix: str, record: PrefixRouteRecord):
             update_prefix_prefix(new_prefix, r)
 
 
-def get_wrapper(prefix: str = ""):
-    prefix = trans_path(prefix)
+def Prefix(prefix:str = ""):
+    """控制器中的前缀，装饰类
+    - 同一个控制器中前缀相同或请求依赖相同的的可以写在一个Prefix装饰的类中；
 
-    def wrapper(cls: type):
+    Args:
+        prefix (str, optional): 前缀，默认空. Defaults to "".
+
+    Returns:
+        T: 被装饰类的实例
+    """
+    prefix = trans_path(prefix)
+    def wrapper(cls: type[T]) -> type[T]:
         # 本层prefix的路由记录
         prefix_route_record = PrefixRouteRecord(api_routes=[], cls=cls, prefix=prefix)
         for v in cls.__dict__.values():
             if (
                 hasattr(v, CONTROLLER_ROUTE_RECORD)
                 and (attr := getattr(v, CONTROLLER_ROUTE_RECORD))
-                and (isinstance(attr, (EndpointRouteRecord, PrefixRouteRecord)))
             ):
                 # 更新路径
                 if isinstance(attr, EndpointRouteRecord):
@@ -46,20 +51,3 @@ def get_wrapper(prefix: str = ""):
         return cls
 
     return wrapper
-
-
-@no_type_check
-def Prefix(prefix: type[T] | str = "") -> T:
-    """控制器中的前缀，装饰类
-    - 同一个控制器中前缀相同或请求依赖相同的的可以写在一个Prefix装饰的类中；
-
-    Args:
-        prefix (type[T] | str, optional): 字符串或类，字符串默认空. Defaults to "".
-
-    Returns:
-        T: 被装饰类的实例
-    """
-    if isclass(prefix):
-        return get_wrapper()
-    # 把前缀加到Prefix的路由记录前面
-    return get_wrapper(trans_path(prefix))

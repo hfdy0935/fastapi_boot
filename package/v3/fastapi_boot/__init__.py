@@ -5,7 +5,7 @@ from .core.decorator import Injectable
 from .core.decorator import Injectable as Component
 from .core.decorator import Injectable as Repository
 from .core.decorator import Injectable as Service
-from .core.decorator import Prefix, RpcClient
+from .core.decorator import Prefix
 from .core.decorator.inject import Inject
 from .core.decorator.inject import Inject as Autowired
 from .core.decorator.mapping import Delete, Get, Head, Options, Patch, Post, Put, Req, Trace

@@ -152,7 +152,6 @@ class Config:
     max_scan_workers: Annotated[int, '扫描最大线程数，按照ThreadPoolExecutor的约定'] = field(
         default=min(32, (os.cpu_count() or 1) + 4)
     )
-    server_name: Annotated[str | None, '服务名，用于远程调用，不设置不会被调用'] = None
 
 
 # ---------------------------------------------------- 主应用中要执行的任务，当前依赖没找到时添加 --------------------------------------------------- #

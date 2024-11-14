@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 
-from fastapi_boot.core.application.rpc import RpcApplication
 from fastapi_boot.globalvar import GlobalVar
 from fastapi_boot.model.scan import Config, ModRecord, MountedTask
 
@@ -26,8 +25,6 @@ class MainApplication:
         self.mod = ModRecord(self.stack_path)
         # 添加到全局应用列表
         GlobalVar.add_app(self)
-        # 创建类
-        self.ra = RpcApplication()
         self.sa = ScanApplication(
             self,
             config.scan_timeout_second,
@@ -47,9 +44,6 @@ class MainApplication:
         GlobalVar.run_app_stack_path_task(self)
         # 每个app创建完，更新一次依赖所属关系，防止错误
         GlobalVar.change_error_dep_pos(self)
-        # 运行全局暂存的根据server_name添加的任务
-        if config.server_name != None:
-            GlobalVar.run_app_server_name_task(config.server_name)
         # 处理是否需要删除swagger的api页面
         if config.need_pure_api:
             for _ in range(4):
