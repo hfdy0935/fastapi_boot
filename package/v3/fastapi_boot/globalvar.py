@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from typing import Generic, TypeVar
 
 from fastapi_boot.exception import AppNotFoundException, InjectFailException

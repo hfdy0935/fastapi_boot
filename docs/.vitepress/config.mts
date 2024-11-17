@@ -50,10 +50,6 @@ export default defineConfig({
                     {
                         text:'主要用法',
                         link: "/tutorial/v3",
-                    },
-                    {
-                        text:'2024-11-11更新',
-                        link:'/tutorial/v3/update_20241111.md'
                     }
                 ]
             },

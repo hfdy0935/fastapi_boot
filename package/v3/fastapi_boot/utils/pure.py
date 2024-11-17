@@ -1,5 +1,4 @@
 import inspect
-from fastapi_boot.constants import PATH_METHOD_CONNECTOR
 
 
 def get_stack_path(n: int) -> str:
@@ -20,8 +19,3 @@ def trans_path(path: str) -> str:
     res = '/' + path.lstrip('/')
     res = res.rstrip('/')
     return '' if res == '/' else res
-
-
-def join_path_method_as_rpc_sign(path:str,method:str)->str:
-    """连接endpoint在Controller中的path和method"""
-    return path+PATH_METHOD_CONNECTOR+method

@@ -224,7 +224,6 @@ def try_resolve_init_params(
             ok = handle_has_annotations_condition(k, v, params, symbol.stack_path, dep_inject_pos)
             if not ok:
                 break
-    # 不成功就返回空有序字典
     return InjectParamsResult(ok=ok, params=params if ok else {})
 
 
