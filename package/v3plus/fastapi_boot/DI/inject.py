@@ -1,31 +1,25 @@
 from typing import Generic, TypeVar
 
-from fastapi_boot.vars import dep_store
+from fastapi_boot.store import app_store,dep_store
+from fastapi_boot.util import get_call_filename
+
+from .util import inject
 
 T = TypeVar('T')
-
-
-def inject(tp: type[T], name: str | None) -> T:
-    """inject dependency by type or name
-
-    Args:
-        tp (type[T])
-        name (str | None)
-
-    Returns:
-        T: instance
-    """
-    return dep_store.inject_by_type(tp) if name is None else dep_store.inject_by_name(name, tp)
 
 
 class AtUsable(type):
     """support @"""
 
     def __matmul__(self: type['Inject'], other: type[T]) -> T:
-        return inject(other, self.name)
+        filename=get_call_filename()
+        inject_timeout = app_store.get(filename).inject_timeout
+        return inject(inject_timeout, other, self.latest_named_deps_record.get(filename))
 
     def __rmatmul__(self: type['Inject'], other: type[T]) -> T:
-        return inject(other, self.name)
+        filename=get_call_filename()
+        inject_timeout = app_store.get(filename).inject_timeout
+        return inject(inject_timeout, other, self.latest_named_deps_record.get(filename))
 
 
 class Inject(Generic[T], metaclass=AtUsable):
@@ -67,20 +61,21 @@ class Inject(Generic[T], metaclass=AtUsable):
             self.ic = ic
     ```
     """
-
-    name: str | None = None
+    latest_named_deps_record:dict[str,str|None]={}
 
     def __new__(cls, tp: type[T], name: str | None = None) -> T:
         """Inject(Type, name = None)"""
-        cls.name = name
-        return inject(tp, name)
+        filename=get_call_filename()
+        cls.latest_named_deps_record.update({filename:name})
+        inject_timeout = app_store.get(filename).inject_timeout
+        res=inject(inject_timeout, tp, name)
+        cls.latest_named_deps_record.update({filename:None}) # set name as None
+        return res
 
     @classmethod
     def Qualifier(cls, name: str) -> type['Inject']:
         """Inject.Qualifier(name)"""
-        _name = name
-
+        filename=get_call_filename()
         class Cls(cls):
-            name = _name
-
+            latest_named_deps_record: dict[str, str]={filename:name}
         return Cls

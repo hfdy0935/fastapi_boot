@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Generic, TypeVar
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, FastAPI, Response
 from fastapi.datastructures import Default
 from fastapi.params import Depends
 from fastapi.responses import JSONResponse
@@ -153,3 +153,10 @@ class PrefixRouteRecord(Generic[T]):
 
     cls: type[T]
     prefix: str = ""
+
+
+# ---------------------------------------------------- app record ---------------------------------------------------- #
+@dataclass
+class FastAPIRecord:
+    app: FastAPI
+    inject_timeout: float

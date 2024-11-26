@@ -10,5 +10,5 @@ class DependencyDuplicatedException(Exception):
     """dependency duplicated"""
 
 
-class InValidControllerException(Exception):
-    """invalid controller, does not have router"""
+class AppNotFoundException(Exception):
+    """app not found"""

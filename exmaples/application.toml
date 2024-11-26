@@ -1,0 +1,16 @@
+[redis]
+host='localhost'
+port=6379
+db=1
+password='xxx'
+expires=600
+
+[minio]
+endpoint='xxx'
+access_key='xxx'
+secret_key='xxx'
+bucket_name='xxx'
+
+[fastapi]
+token_key='Authorization1'
+session_key='xxx'

@@ -1,6 +1,6 @@
 from collections.abc import Callable, Sequence
 from enum import Enum
-from inspect import Parameter, signature
+from inspect import Parameter, iscoroutinefunction, signature
 from typing import Any, Generic, TypeVar
 
 from fastapi import APIRouter, Depends, Response, params
@@ -11,23 +11,14 @@ from fastapi.utils import generate_unique_id
 from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Lifespan
 
-from fastapi_boot.constants import (
-    API_ROUTER_KEY_IN_CONTROLLER,
-    CONTROLLER_ROUTE_RECORD,
-    REQ_DEP_PLACEHOLDER,
-    USE_DEP_PREFIX_IN_ENDPOINT,
-)
+from fastapi_boot.constants import CONTROLLER_ROUTE_RECORD, REQ_DEP_PLACEHOLDER, USE_DEP_PREFIX_IN_ENDPOINT
+from fastapi_boot.DI.util import inject_init_deps_and_get_instance
 from fastapi_boot.enums import RequestMethodEnum, RequestMethodStrEnum
 from fastapi_boot.model import BaseHttpRouteItem, EndpointRouteRecord, PrefixRouteRecord, WebSocketRouteItem
-from fastapi_boot.util import inject_dependency_init_deps, trans_path
-from fastapi_boot.vars import TypeDepRecord, dep_store
+from fastapi_boot.store import TypeDepRecord, app_store, dep_store
+from fastapi_boot.util import get_call_filename, trans_path
 
 T = TypeVar('T')
-
-
-def update_default_value_of_param(p: Parameter, default: Any):
-    """set default value for param p"""
-    return p.replace(default=Depends(lambda: default), kind=Parameter.KEYWORD_ONLY)
 
 
 def get_use_deps(cls: type[T]):
@@ -56,13 +47,20 @@ def trans_endpoint(instance: Any, endpoint: Callable, use_dep_dict: dict):
         req_name = USE_DEP_PREFIX_IN_ENDPOINT + k
         params.append(Parameter(name=req_name, kind=Parameter.KEYWORD_ONLY, annotation=v[0], default=v[1]))
     # 3. replace old endpoint
-
-    def new_endpoint(self, *args, **kwargs):
+    
+    def handle_kwargs(self,kwargs:dict):
         for k in use_dep_dict.keys():
             req_name = USE_DEP_PREFIX_IN_ENDPOINT + k
             setattr(self, k, kwargs.pop(req_name))
-        return endpoint(self, *args, **kwargs)
-
+            kwargs.get(req_name) # auto call use_dep result
+    if iscoroutinefunction(endpoint):
+        async def new_endpoint(self, *args, **kwargs):
+            handle_kwargs(self,kwargs)
+            return await endpoint(self, *args, **kwargs)
+    else:
+        def new_endpoint(self, *args, **kwargs):
+            handle_kwargs(self,kwargs)
+            return endpoint(self, *args, **kwargs)
     setattr(new_endpoint, '__signature__', signature(endpoint).replace(parameters=params))
     return new_endpoint
 
@@ -75,18 +73,19 @@ def mount_endpoint_to_anchor(
     api_route.record.replace_endpoint(new_endpoint).add_prefix(prefix).mount_to(anchor)
 
 
-def resolve_class_based_view(anchor: APIRouter, super_instance: Any, route_record: PrefixRouteRecord[T], prefix: str):
+def resolve_class_based_view(anchor: APIRouter, route_record: PrefixRouteRecord[T], prefix: str, inject_timeout: float):
     """
 
     Args:
         anchor (APIRouter): mount anchor
-        super_instance (Any): class's instance of route_record.cls
         route_record (PrefixRouteRecord[T])
         prefix (str): prefix of request path
+        inject_timeout (float): inject timeout
     """
     cls: type[T] = route_record.cls
     use_deps_dict = get_use_deps(cls)
-    instance: T = inject_dependency_init_deps(cls)
+
+    instance: T = inject_init_deps_and_get_instance(inject_timeout, cls)
 
     for v in cls.__dict__.values():
         if hasattr(v, CONTROLLER_ROUTE_RECORD) and (attr := getattr(v, CONTROLLER_ROUTE_RECORD)):
@@ -94,7 +93,7 @@ def resolve_class_based_view(anchor: APIRouter, super_instance: Any, route_recor
             if isinstance(attr, EndpointRouteRecord):
                 mount_endpoint_to_anchor(anchor, attr, instance, use_deps_dict, new_prefix)
             elif isinstance(attr, PrefixRouteRecord):
-                resolve_class_based_view(anchor, instance, attr, new_prefix)
+                resolve_class_based_view(anchor, attr, new_prefix, inject_timeout)
     # collect controller as a type dependency
     dep_store.add_dep_by_type(TypeDepRecord(cls, instance))
     return instance
@@ -147,8 +146,9 @@ class Controller(APIRouter, Generic[T]):
         )
 
     def __call__(self, cls: type[T]) -> T:
-        instance = resolve_class_based_view(self, lambda: ..., PrefixRouteRecord(cls), '')
-        setattr(cls, API_ROUTER_KEY_IN_CONTROLLER, self)
+        inject_timeout = app_store.get(get_call_filename()).inject_timeout
+        instance = resolve_class_based_view(self, PrefixRouteRecord(cls), '', inject_timeout)
+        app_store.get(get_call_filename()).app.include_router(self)
         return instance
 
     def __getattribute__(self, k: str):
@@ -164,7 +164,7 @@ class Controller(APIRouter, Generic[T]):
                         BaseHttpRouteItem(endpoint, *args, **kwds).mount_to(self)
                     else:
                         BaseHttpRouteItem(endpoint, methods=[k], *args, **kwds).mount_to(self)
-                    setattr(endpoint, API_ROUTER_KEY_IN_CONTROLLER, self)
+                    app_store.get(get_call_filename()).app.include_router(self)
                     return endpoint
 
                 return wrapper
