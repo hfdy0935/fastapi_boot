@@ -11,14 +11,46 @@ from fastapi.utils import generate_unique_id
 from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Lifespan
 
-from fastapi_boot.constants import CONTROLLER_ROUTE_RECORD, REQ_DEP_PLACEHOLDER, USE_DEP_PREFIX_IN_ENDPOINT, USE_MIDDLEWARE_PLACEHOLDER
-from fastapi_boot.DI.util import inject_init_deps_and_get_instance
-from fastapi_boot.enums import RequestMethodEnum, RequestMethodStrEnum
-from fastapi_boot.model import BaseHttpRouteItem, EndpointRouteRecord, PrefixRouteRecord, WebSocketRouteItem
-from fastapi_boot.store import TypeDepRecord, app_store, dep_store
-from fastapi_boot.util import get_call_filename, trans_path
+from fastapi_boot.const import (
+    CONTROLLER_ROUTE_RECORD,
+    REQ_DEP_PLACEHOLDER,
+    USE_DEP_PREFIX_IN_ENDPOINT,
+    USE_MIDDLEWARE_PLACEHOLDER,
+    TypeDepRecord,
+    app_store,
+    dep_store,
+)
+from fastapi_boot.di import inject_init_deps_and_get_instance
+from fastapi_boot.model import (
+    AppRecord,
+    BaseHttpRouteItem,
+    BaseHttpRouteItemWithoutEndpoint,
+    EndpointRouteRecord,
+    PrefixRouteRecord,
+    RequestMethodEnum,
+    RequestMethodStrEnum,
+)
+from fastapi_boot.model import SpecificHttpRouteItemWithoutEndpointAndMethods as SM
+from fastapi_boot.model import WebSocketRouteItem, WebSocketRouteItemWithoutEndpoint
+from fastapi_boot.util import get_call_filename
 
-T = TypeVar('T')
+T = TypeVar('T', bound=Callable)
+
+
+def trans_path(path: str) -> str:
+    """
+    - Example：
+    > 1. a  => /a
+    > 2. /a => /a
+    > 3. a/ => /a
+    > 4. /a/ => /a
+    """
+    res = '/' + path.lstrip('/')
+    res = res.rstrip('/')
+    return '' if res == '/' else res
+
+
+# ---------------------------------------------------- Controller ---------------------------------------------------- #
 
 
 def get_use_result(cls: type[T]):
@@ -44,15 +76,13 @@ def trans_endpoint(instance: Any, endpoint: Callable, use_dep_dict: dict):
     # 1. all to keyword_only，replace self
     for idx, p in enumerate(params):
         if idx == 0 and p.name == 'self':
-            params[0] = params[0].replace(default=Depends(
-                lambda: instance), kind=Parameter.KEYWORD_ONLY)
+            params[0] = params[0].replace(default=Depends(lambda: instance), kind=Parameter.KEYWORD_ONLY)
         else:
             params[idx] = params[idx].replace(kind=Parameter.KEYWORD_ONLY)
     # 2. add use_dep's deps
     for k, v in use_dep_dict.items():
         req_name = USE_DEP_PREFIX_IN_ENDPOINT + k
-        params.append(Parameter(
-            name=req_name, kind=Parameter.KEYWORD_ONLY, annotation=v[0], default=v[1]))
+        params.append(Parameter(name=req_name, kind=Parameter.KEYWORD_ONLY, annotation=v[0], default=v[1]))
     # 3. replace old endpoint
 
     def handle_kwargs(self, kwargs: dict):
@@ -68,27 +98,35 @@ def trans_endpoint(instance: Any, endpoint: Callable, use_dep_dict: dict):
     def sync_new_endpoint(self, *args, **kwargs):
         handle_kwargs(self, kwargs)
         return endpoint(self, *args, **kwargs)
-    new_endpoint = async_new_endpoint if iscoroutinefunction(
-        endpoint) else sync_new_endpoint
-    setattr(new_endpoint, '__signature__', signature(
-        endpoint).replace(parameters=params))
+
+    new_endpoint = async_new_endpoint if iscoroutinefunction(endpoint) else sync_new_endpoint
+    setattr(new_endpoint, '__signature__', signature(endpoint).replace(parameters=params))
     return new_endpoint
 
 
 def mount_endpoint_to_anchor(
-    anchor: APIRouter, api_route: EndpointRouteRecord, instance: Any, use_deps_dict: dict, prefix: str, urls_methods: list[tuple[str, str]]
+    anchor: APIRouter,
+    api_route: EndpointRouteRecord,
+    instance: Any,
+    use_deps_dict: dict,
+    prefix: str,
+    urls_methods: list[tuple[str, str]],
 ):
     """mount endpoint to anchor and add middleware"""
-    new_endpoint = trans_endpoint(
-        instance, api_route.record.endpoint, use_dep_dict=use_deps_dict)
-    api_route.record.replace_endpoint(
-        new_endpoint).add_prefix(prefix).mount_to(anchor, urls_methods)
+    new_endpoint = trans_endpoint(instance, api_route.record.endpoint, use_dep_dict=use_deps_dict)
+    api_route.record.replace_endpoint(new_endpoint).add_prefix(prefix).mount_to(anchor)
     if isinstance(api_route.record, BaseHttpRouteItem):
-        urls_methods.extend([(anchor.prefix+api_route.record.path, method.upper() if isinstance(method, str) else method.value)
-                            for method in api_route.record.methods])
+        urls_methods.extend(
+            [
+                (anchor.prefix + api_route.record.path, method.upper() if isinstance(method, str) else method.value)
+                for method in api_route.record.methods
+            ]
+        )
 
 
-def resolve_class_based_view(app: FastAPI, anchor: APIRouter, route_record: PrefixRouteRecord[T], prefix: str, inject_timeout: float):
+def resolve_class_based_view(
+    app: FastAPI, anchor: APIRouter, route_record: PrefixRouteRecord[T], prefix: str, app_record: AppRecord
+):
     """
 
     Args:
@@ -96,32 +134,27 @@ def resolve_class_based_view(app: FastAPI, anchor: APIRouter, route_record: Pref
         anchor (APIRouter): mount anchor
         route_record (PrefixRouteRecord[T])
         prefix (str): prefix of request path
-        inject_timeout (float): inject timeout
+        app_record (AppRecord): app record
     """
     cls: type[T] = route_record.cls
     use_deps_dict, use_middleware_list = get_use_result(cls)
 
-    instance: T = inject_init_deps_and_get_instance(inject_timeout, cls)
+    instance: T = inject_init_deps_and_get_instance(app_record, cls)
     urls_methods: list[tuple[str, str]] = []
 
     for v in cls.__dict__.values():
         if hasattr(v, CONTROLLER_ROUTE_RECORD) and (attr := getattr(v, CONTROLLER_ROUTE_RECORD)):
             new_prefix = prefix + route_record.prefix
             if isinstance(attr, EndpointRouteRecord):
-                mount_endpoint_to_anchor(
-                    anchor, attr, instance, use_deps_dict, new_prefix, urls_methods)
+                mount_endpoint_to_anchor(anchor, attr, instance, use_deps_dict, new_prefix, urls_methods)
             elif isinstance(attr, PrefixRouteRecord):
-                resolve_class_based_view(
-                    app, anchor, attr, new_prefix, inject_timeout)
+                resolve_class_based_view(app, anchor, attr, new_prefix, app_record)
     # add middleware
     for func in use_middleware_list:
         func(app, urls_methods)
     # collect controller as a type dependency
     dep_store.add_dep_by_type(TypeDepRecord(cls, instance))
     return instance
-
-
-# -------------------------------------------------------- 控制器 ------------------------------------------------------- #
 
 
 class Controller(APIRouter, Generic[T]):
@@ -144,8 +177,7 @@ class Controller(APIRouter, Generic[T]):
         lifespan: Lifespan[Any] | None = None,
         deprecated: bool | None = None,
         include_in_schema: bool = True,
-        generate_unique_id_function: Callable[[
-            APIRoute], str] = Default(generate_unique_id),
+        generate_unique_id_function: Callable[[APIRoute], str] = Default(generate_unique_id),
     ):
         self.prefix = trans_path(prefix)
         super().__init__(
@@ -167,14 +199,11 @@ class Controller(APIRouter, Generic[T]):
             include_in_schema=include_in_schema,
             generate_unique_id_function=generate_unique_id_function,
         )
-        self.urls: list[str] = []
         self.use_middleware_tasks: list[Callable] = []
 
     def __call__(self, cls: type[T]) -> T:
         app_record = app_store.get(get_call_filename())
-        inject_timeout = app_record.inject_timeout
-        instance = resolve_class_based_view(
-            app_record.app, self, PrefixRouteRecord(cls), '', inject_timeout)
+        instance = resolve_class_based_view(app_record.app, self, PrefixRouteRecord(cls), '', app_record)
         app_record.app.include_router(self)
         return instance
 
@@ -186,14 +215,11 @@ class Controller(APIRouter, Generic[T]):
                 def wrapper(endpoint):
                     # @Controller(...).websocket(...)  @Controller(...).websocket_route(...)
                     if k.upper() in [RequestMethodEnum.WEBSOCKET.value, 'WEBSOCKET_ROUTE']:
-                        WebSocketRouteItem(
-                            endpoint, *args, **kwds).mount_to(self)
+                        WebSocketRouteItem(endpoint, *args, **kwds).mount_to(self)
                     elif k == 'api_route':
-                        BaseHttpRouteItem(endpoint, *args, **
-                                          kwds).mount_to(self)
+                        BaseHttpRouteItem(endpoint, *args, **kwds).mount_to(self)
                     else:
-                        BaseHttpRouteItem(endpoint, methods=[
-                                          k], *args, **kwds).mount_to(self)
+                        BaseHttpRouteItem(endpoint, methods=[k], *args, **kwds).mount_to(self)
                     app_store.get(get_call_filename()).app.include_router(self)
                     return endpoint
 
@@ -201,3 +227,98 @@ class Controller(APIRouter, Generic[T]):
 
             return decorator
         return attr
+
+
+# ------------------------------------------------------ Mapping ----------------------------------------------------- #
+
+
+class Req(BaseHttpRouteItemWithoutEndpoint):
+    def __call__(self, endpoint: T) -> T:
+        """
+        @Req()
+        def _():
+            ...
+        """
+        self.path = trans_path(self.path)
+        route_record = EndpointRouteRecord(BaseHttpRouteItem(endpoint=endpoint, **self.dict))
+        setattr(endpoint, CONTROLLER_ROUTE_RECORD, route_record)
+        return endpoint
+
+
+class Get(SM):
+    def __call__(self, endpoint: T) -> T:
+        return Req(**self.dict)(endpoint)
+
+
+class Post(SM):
+    def __call__(self, endpoint: T) -> T:
+        return Req(**self.dict, methods=['post'])(endpoint)
+
+
+class Put(SM):
+    def __call__(self, endpoint: T) -> T:
+        return Req(**self.dict, methods=['put'])(endpoint)
+
+
+class Delete(SM):
+    def __call__(self, endpoint: T) -> T:
+        return Req(**self.dict, methods=['delete'])(endpoint)
+
+
+class Head(SM):
+    def __call__(self, endpoint: T) -> T:
+        return Req(**self.dict, methods=['head'])(endpoint)
+
+
+class Patch(SM):
+    def __call__(self, endpoint: T) -> T:
+        return Req(**self.dict, methods=['patch'])(endpoint)
+
+
+class Trace(SM):
+    def __call__(self, endpoint: T) -> T:
+        return Req(**self.dict, methods=['options'])(endpoint)
+
+
+class Options(SM):
+    def __call__(self, endpoint: T) -> T:
+        return Req(**self.dict, methods=['trace'])(endpoint)
+
+
+class WebSocket(WebSocketRouteItemWithoutEndpoint):
+    def __call__(self, endpoint: T) -> T:
+        self.path = trans_path(self.path)
+        route_record = EndpointRouteRecord(WebSocketRouteItem(endpoint=endpoint, **self.dict))
+        setattr(endpoint, CONTROLLER_ROUTE_RECORD, route_record)
+        return endpoint
+
+
+# ------------------------------------------------------ Prefix ------------------------------------------------------ #
+def Prefix(prefix: str = ""):
+    """sub block in controller， can isolate inner deps and outer deps
+    ```python
+    def f1(p: str = Query()):
+        return 'f1'
+    def f2(q: int = Query()):
+        return 'f2'
+
+    @Controller()
+    class UserController:
+        p = use_dep(f1)
+
+        @Prefix()
+        class Foo:
+            q = use_dep(f2)
+            @Get()
+            def get_user(self): # only need the query param 'q'
+                return self.q
+    ```
+    """
+    prefix = trans_path(prefix)
+
+    def wrapper(cls: type[T]) -> type[T]:
+        prefix_route_record = PrefixRouteRecord(cls=cls, prefix=prefix)
+        setattr(cls, CONTROLLER_ROUTE_RECORD, prefix_route_record)
+        return cls
+
+    return wrapper

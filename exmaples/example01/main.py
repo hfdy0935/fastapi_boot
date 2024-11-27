@@ -1,8 +1,7 @@
-from fastapi import FastAPI
-from starlette.middleware.sessions import SessionMiddleware
-
-from fastapi_boot import provide_app
 import uvicorn
+from fastapi import FastAPI
+from fastapi_boot import provide_app
+from starlette.middleware.sessions import SessionMiddleware
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key='foo')

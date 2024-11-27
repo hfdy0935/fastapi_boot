@@ -1,7 +1,7 @@
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Literal, TypeAlias, TypeVar
 
 from fastapi import APIRouter, FastAPI, Response
 from fastapi.datastructures import Default
@@ -11,9 +11,51 @@ from fastapi.routing import APIRoute
 from fastapi.types import IncEx
 from fastapi.utils import generate_unique_id
 
-from fastapi_boot.enums import RequestMethodEnum, RequestMethodStrEnum
-
 T = TypeVar('T')
+
+
+# ------------------------------------------------------- enums ------------------------------------------------------ #
+class RequestMethodEnum(Enum):
+    GET = "GET"
+    POST = "POST"
+    PUT = "PUT"
+    DELETE = "DELETE"
+    OPTIONS = "OPTIONS"
+    HEAD = "HEAD"
+    PATCH = "PATCH"
+    TRACE = "TRACE"
+    WEBSOCKET = "WEBSOCKET"
+
+    @staticmethod
+    def contains(k: str):
+        return k.upper() in RequestMethodEnum.__members__
+
+
+RequestMethodStrEnum: TypeAlias = Literal[
+    'get',
+    'GET',
+    'post',
+    'POST',
+    'put',
+    'PUT',
+    'delete',
+    'DELETE',
+    'connect',
+    'CONNECT',
+    'head',
+    'HEAD',
+    'options',
+    'OPTIONS',
+    'trace',
+    'TRACE',
+    'patch',
+    'PATCH',
+    'websocket',
+    'WEBSOCKET',
+]
+
+
+# -------------------------------------------------- request params -------------------------------------------------- #
 
 
 @dataclass
@@ -38,13 +80,11 @@ class SpecificHttpRouteItemWithoutEndpointAndMethods:
     response_model_exclude_defaults: bool = False
     response_model_exclude_none: bool = False
     include_in_schema: bool = True
-    response_class: type[Response] | Any = field(
-        default_factory=lambda: Default(JSONResponse))
+    response_class: type[Response] | Any = field(default_factory=lambda: Default(JSONResponse))
     name: str | None = None
     route_class_override: type[APIRoute] | None = None
     openapi_extra: dict[str, Any] | None = None
-    generate_unique_id_function: Any = field(
-        default_factory=lambda: Default(generate_unique_id))
+    generate_unique_id_function: Any = field(default_factory=lambda: Default(generate_unique_id))
 
     @property
     def dict(self):
@@ -83,13 +123,11 @@ class BaseHttpRouteItem:
     response_model_exclude_defaults: bool = False
     response_model_exclude_none: bool = False
     include_in_schema: bool = True
-    response_class: type[Response] | Any = field(
-        default_factory=lambda: Default(JSONResponse))
+    response_class: type[Response] | Any = field(default_factory=lambda: Default(JSONResponse))
     name: str | None = None
     route_class_override: type[APIRoute] | None = None
     openapi_extra: dict[str, Any] | None = None
-    generate_unique_id_function: Any = field(
-        default_factory=lambda: Default(generate_unique_id))
+    generate_unique_id_function: Any = field(default_factory=lambda: Default(generate_unique_id))
     methods: set[RequestMethodEnum | RequestMethodStrEnum] | list[RequestMethodEnum | RequestMethodStrEnum] = field(
         default_factory=lambda: ['get']
     )
@@ -102,7 +140,7 @@ class BaseHttpRouteItem:
         self.path = prefix + self.path
         return self
 
-    def mount_to(self, app: APIRouter, urls_methods: list[tuple[str, str]] = []):
+    def mount_to(self, app: APIRouter):
         for method in self.methods:
             app.add_api_route(**{**asdict(self), 'methods': [method]})
 
@@ -136,7 +174,7 @@ class WebSocketRouteItem:
         self.path = prefix + self.path
         return self
 
-    def mount_to(self, anchor: APIRouter, *args):
+    def mount_to(self, anchor: APIRouter):
         """no middleware"""
         anchor.add_api_websocket_route(**asdict(self))
 
@@ -164,6 +202,24 @@ class PrefixRouteRecord(Generic[T]):
 @dataclass
 class AppRecord:
     """fastapi_record in store"""
+
     app: FastAPI
     inject_timeout: float
-    inject_retry_step:float
+    inject_retry_step: float
+
+
+# ----------------------------------------------------- exception ---------------------------------------------------- #
+class InjectFailException(Exception):
+    """inject fail"""
+
+
+class DependencyNotFoundException(Exception):
+    """dependency not found"""
+
+
+class DependencyDuplicatedException(Exception):
+    """dependency duplicated"""
+
+
+class AppNotFoundException(Exception):
+    """app not found"""

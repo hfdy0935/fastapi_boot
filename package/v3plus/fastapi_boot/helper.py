@@ -9,9 +9,8 @@ from typing import Any, TypeVar
 from fastapi import Depends, FastAPI, Request, Response
 from starlette.routing import BaseRoute
 
-from fastapi_boot.constants import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_PLACEHOLDER
+from fastapi_boot.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_PLACEHOLDER, app_store, task_store
 from fastapi_boot.model import AppRecord
-from fastapi_boot.store import app_store, task_store
 from fastapi_boot.util import get_call_filename
 
 T = TypeVar('T')
@@ -148,18 +147,43 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
     return app
 
 
-def OnAppProvided(priority:int=1):
-    """dDo something when the app has been provided"""
-    def wrapper(func: Callable[[FastAPI], None]|Callable[[],None]):
-        task_store.add_late_task(get_call_filename(), func,priority)
+def OnAppProvided(priority: int = 1):
+    """Methods to be executed after the app is provided
+    ```python
+    @OnAppProvided()
+    def _(app:FastAPI):
+        print('foo')
+
+    @OnAppProvided(priority=10):
+    def func():
+        print('bar')
+
+    # bar >> foo
+    ```
+    """
+
+    def wrapper(func: Callable[[FastAPI], None] | Callable[[], None]):
+        task_store.add_late_task(get_call_filename(), func, priority)
         return func
+
     return wrapper
 
 
-E=TypeVar('E',bound=Exception)
-def ExceptionHandler(exp: int | type[E]):
-    def decorator(handler: Callable[[Request, E], Response]):
-        task_store.add_late_task(get_call_filename(), lambda app: app.add_exception_handler(exp, handler),1)
-        return handler
-    return decorator
+E = TypeVar('E', bound=Exception)
 
+
+def ExceptionHandler(exp: int | type[E]):
+    """
+    Declarative style of the following code
+    ```python
+    @app.exception_handler(Exception)
+    def _(req: Request, exp: Exception):
+        ...
+    ```
+    """
+
+    def decorator(handler: Callable[[Request, E], Response]):
+        task_store.add_late_task(get_call_filename(), lambda app: app.add_exception_handler(exp, handler), 1)
+        return handler
+
+    return decorator

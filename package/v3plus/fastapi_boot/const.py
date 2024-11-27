@@ -1,13 +1,30 @@
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
-import inspect
 from typing import Generic, TypeVar
-from fastapi import FastAPI
 
-from fastapi_boot.exception import AppNotFoundException, DependencyDuplicatedException
-from fastapi_boot.model import AppRecord
+from fastapi_boot.model import AppNotFoundException, AppRecord, DependencyDuplicatedException
 
 T = TypeVar('T')
+
+# ---------------------------------------------------- constant ---------------------------------------------------- #
+# use_dep placeholder
+REQ_DEP_PLACEHOLDER = "fastapi_boot___dependency_placeholder"
+
+
+# route record's key in controller
+CONTROLLER_ROUTE_RECORD = "fastapi_boot___controller_route_record"
+
+# prefix of use_dep params in endpoint
+USE_DEP_PREFIX_IN_ENDPOINT = 'fastapi_boot__use_dep_prefix'
+
+
+# use_middleware placeholder
+USE_MIDDLEWARE_PLACEHOLDER = 'fastapi_boot__use_middleware_placeholder'
+
+
+# ------------------------------------------------------- store ------------------------------------------------------ #
+
 
 @dataclass
 class TypeDepRecord(Generic[T]):
@@ -20,7 +37,7 @@ class NameDepRecord(Generic[T], TypeDepRecord[T]):
     name: str
 
 
-class DependenciesStore(Generic[T]):
+class DependencyStore(Generic[T]):
     def __init__(self):
         self.type_deps: dict[type[T], TypeDepRecord[T]] = {}
         self.name_deps: dict[str, NameDepRecord[T]] = {}
@@ -63,27 +80,26 @@ class AppStore(Generic[T]):
 class TasStore:
     def __init__(self):
         # will be called after the app becomes available
-        self.late_tasks: dict[str, list[tuple[Callable[[FastAPI], None],int]]] = {}
+        self.late_tasks: dict[str, list[tuple[Callable, int]]] = {}
 
-    def add_late_task(self, path: str, task: Callable[[FastAPI], None],priority:int):
+    def add_late_task(self, path: str, task: Callable, priority: int):
         if curr_tasks := self.late_tasks.get(path):
-            l=[*curr_tasks, (task,priority)]
-            l.sort(key=lambda x:x[1], reverse=True)
-            self.late_tasks.update({path: l})
+            self.late_tasks.update({path: [*curr_tasks, (task, priority)]})
         else:
-            self.late_tasks.update({path: [(task,priority)]})
+            self.late_tasks.update({path: [(task, priority)]})
 
     def run_late_tasks(self):
         for path, late_tasks in self.late_tasks.items():
             app = app_store.get(path).app
+            late_tasks.sort(key=lambda x: x[1], reverse=True)
             for record in late_tasks:
-                task=record[0]
-                if len(inspect.signature(task).parameters)>0:
+                task = record[0]
+                if len(inspect.signature(task).parameters) > 0:
                     task(app)
                 else:
                     task()
 
 
-dep_store = DependenciesStore()
+dep_store = DependencyStore()
 app_store = AppStore()
 task_store = TasStore()
