@@ -38,11 +38,13 @@ class SpecificHttpRouteItemWithoutEndpointAndMethods:
     response_model_exclude_defaults: bool = False
     response_model_exclude_none: bool = False
     include_in_schema: bool = True
-    response_class: type[Response] | Any = field(default_factory=lambda: Default(JSONResponse))
+    response_class: type[Response] | Any = field(
+        default_factory=lambda: Default(JSONResponse))
     name: str | None = None
     route_class_override: type[APIRoute] | None = None
     openapi_extra: dict[str, Any] | None = None
-    generate_unique_id_function: Any = field(default_factory=lambda: Default(generate_unique_id))
+    generate_unique_id_function: Any = field(
+        default_factory=lambda: Default(generate_unique_id))
 
     @property
     def dict(self):
@@ -81,11 +83,13 @@ class BaseHttpRouteItem:
     response_model_exclude_defaults: bool = False
     response_model_exclude_none: bool = False
     include_in_schema: bool = True
-    response_class: type[Response] | Any = field(default_factory=lambda: Default(JSONResponse))
+    response_class: type[Response] | Any = field(
+        default_factory=lambda: Default(JSONResponse))
     name: str | None = None
     route_class_override: type[APIRoute] | None = None
     openapi_extra: dict[str, Any] | None = None
-    generate_unique_id_function: Any = field(default_factory=lambda: Default(generate_unique_id))
+    generate_unique_id_function: Any = field(
+        default_factory=lambda: Default(generate_unique_id))
     methods: set[RequestMethodEnum | RequestMethodStrEnum] | list[RequestMethodEnum | RequestMethodStrEnum] = field(
         default_factory=lambda: ['get']
     )
@@ -98,9 +102,9 @@ class BaseHttpRouteItem:
         self.path = prefix + self.path
         return self
 
-    def mount_to(self, anchor: APIRouter):
+    def mount_to(self, app: APIRouter, urls_methods: list[tuple[str, str]] = []):
         for method in self.methods:
-            anchor.add_api_route(**{**asdict(self), 'methods': [method]})
+            app.add_api_route(**{**asdict(self), 'methods': [method]})
 
 
 @dataclass
@@ -132,7 +136,8 @@ class WebSocketRouteItem:
         self.path = prefix + self.path
         return self
 
-    def mount_to(self, anchor: APIRouter):
+    def mount_to(self, anchor: APIRouter, *args):
+        """no middleware"""
         anchor.add_api_websocket_route(**asdict(self))
 
 
@@ -157,6 +162,8 @@ class PrefixRouteRecord(Generic[T]):
 
 # ---------------------------------------------------- app record ---------------------------------------------------- #
 @dataclass
-class FastAPIRecord:
+class AppRecord:
+    """fastapi_record in store"""
     app: FastAPI
     inject_timeout: float
+    inject_retry_step:float

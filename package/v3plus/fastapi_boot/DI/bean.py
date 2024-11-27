@@ -2,34 +2,35 @@ import inspect
 from collections.abc import Callable
 from typing import TypeVar, no_type_check, overload
 
-from fastapi_boot.store import NamedDepRecord, TypeDepRecord, app_store, dep_store
+from fastapi_boot.store import NameDepRecord, TypeDepRecord, app_store, dep_store
 from fastapi_boot.util import get_call_filename
+from fastapi_boot.model import AppRecord
 
 from .util import inject_params_deps
 
 T = TypeVar('T')
 
 
-def collect_bean(inject_timeout: float, func: Callable, name: str | None = None):
+def collect_bean(app_record: AppRecord, func: Callable, name: str | None = None):
     """
     1. run function decorated by Bean decorator
     2. add the result to deps_store
 
     Args:
-        inject_timeout (float)
+        app_record (AppRecord)
         func (Callable): func
         name (str | None, optional): name of dep
     """
     params: list[inspect.Parameter] = list(inspect.signature(func).parameters.values())
     return_annotations = inspect.signature(func).return_annotation
 
-    inject_params_res = inject_params_deps(inject_timeout, params)
+    inject_params_res = inject_params_deps(app_record, params)
     instance = func(**inject_params_res)
     tp = return_annotations if return_annotations != inspect._empty else type(instance)
     if name is None:
         dep_store.add_dep_by_type(TypeDepRecord(tp, instance))
     else:
-        dep_store.add_dep_by_name(NamedDepRecord(tp, instance, name))
+        dep_store.add_dep_by_name(NameDepRecord(tp, instance, name))
 
 
 @overload
@@ -68,15 +69,15 @@ def Bean(value: str | Callable[..., T]) -> Callable[..., T]:
         return User(name='zs', age=21)
     ```
     """
-    inject_timeout = app_store.get(get_call_filename()).inject_timeout
+    app_record = app_store.get(get_call_filename())
 
     if callable(value):
-        collect_bean(inject_timeout, value)
+        collect_bean(app_record, value)
         return value
     else:
 
         def wrapper(func: Callable[..., T]) -> Callable[..., T]:
-            collect_bean(inject_timeout, func, value)
+            collect_bean(app_record, func, value)
             return func
 
         return wrapper

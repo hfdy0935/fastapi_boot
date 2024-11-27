@@ -1,22 +1,24 @@
 from inspect import isclass
 from typing import TypeVar, no_type_check, overload
 
-from fastapi_boot.store import NamedDepRecord, TypeDepRecord, app_store, dep_store
+from fastapi_boot.store import NameDepRecord, TypeDepRecord, app_store, dep_store
 from fastapi_boot.util import get_call_filename
+from fastapi_boot.model import AppRecord
 
 from .util import inject_init_deps_and_get_instance
 
 T = TypeVar('T')
 
 
-def collect_dep(inject_timeout: float, cls: type, name: str | None = None):
+def collect_dep(app_record: AppRecord, cls: type, name: str | None = None):
     """init class decorated by Inject decorator and collect it's instance as dependency"""
-    cls.__init__.__globals__[cls.__name__] = cls  # avoid error when getting cls in __init__ method
-    instance = inject_init_deps_and_get_instance(inject_timeout, cls)
+    if hasattr(cls.__init__, '__globals__'):
+        cls.__init__.__globals__[cls.__name__] = cls  # avoid error when getting cls in __init__ method
+    instance = inject_init_deps_and_get_instance(app_record, cls)
     if name is None:
         dep_store.add_dep_by_type(TypeDepRecord(cls, instance))
     else:
-        dep_store.add_dep_by_name(NamedDepRecord(cls, instance, name))
+        dep_store.add_dep_by_name(NameDepRecord(cls, instance, name))
 
 
 @overload
@@ -38,14 +40,14 @@ def Injectable(value: str | type[T]) -> type[T]:
     ```
 
     """
-    inject_timeout = app_store.get((get_call_filename())).inject_timeout
+    app_record = app_store.get((get_call_filename()))
     if isclass(value):
-        collect_dep(inject_timeout, value)
+        collect_dep(app_record, value)
         return value
     else:
 
         def wrapper(cls: type[T]):
-            collect_dep(inject_timeout, cls, value)
+            collect_dep(app_record, cls, value)
             return cls
 
         return wrapper

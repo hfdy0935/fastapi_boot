@@ -1,6 +1,6 @@
 from typing import Generic, TypeVar
 
-from fastapi_boot.store import app_store,dep_store
+from fastapi_boot.store import app_store
 from fastapi_boot.util import get_call_filename
 
 from .util import inject
@@ -13,13 +13,13 @@ class AtUsable(type):
 
     def __matmul__(self: type['Inject'], other: type[T]) -> T:
         filename=get_call_filename()
-        inject_timeout = app_store.get(filename).inject_timeout
-        return inject(inject_timeout, other, self.latest_named_deps_record.get(filename))
+        app_record = app_store.get(filename)
+        return inject(app_record, other, self.latest_named_deps_record.get(filename))
 
     def __rmatmul__(self: type['Inject'], other: type[T]) -> T:
         filename=get_call_filename()
-        inject_timeout = app_store.get(filename).inject_timeout
-        return inject(inject_timeout, other, self.latest_named_deps_record.get(filename))
+        app_record = app_store.get(filename)
+        return inject(app_record, other, self.latest_named_deps_record.get(filename))
 
 
 class Inject(Generic[T], metaclass=AtUsable):
@@ -67,9 +67,9 @@ class Inject(Generic[T], metaclass=AtUsable):
         """Inject(Type, name = None)"""
         filename=get_call_filename()
         cls.latest_named_deps_record.update({filename:name})
-        inject_timeout = app_store.get(filename).inject_timeout
-        res=inject(inject_timeout, tp, name)
-        cls.latest_named_deps_record.update({filename:None}) # set name as None
+        app_record = app_store.get(filename)
+        res=inject(app_record, tp, name)
+        cls.latest_named_deps_record.update({filename:None}) # set name None
         return res
 
     @classmethod

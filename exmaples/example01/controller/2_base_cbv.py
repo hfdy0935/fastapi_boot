@@ -39,7 +39,7 @@ class FirstController:
 
     @Get('/foo', response_model=BaseResp[str])
     def get_foo(self):
-        return dict(code=200, msg='success', data='foo')
+        return BaseResp(code=200, msg='success', data='foo')
 
     @Post('/bar')
     def post_bar(self, p: str = Query()):

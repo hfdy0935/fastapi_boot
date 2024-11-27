@@ -1,10 +1,6 @@
 from typing import Annotated
 
 from fastapi_boot import Inject, Service
-from minio import Minio
-from redis import Redis
-
-from model.config import ProjConfig
 from model.user import User
 
 a = Inject(User, 'a')
@@ -16,13 +12,8 @@ class UserService:
 
     def __init__(self, c: Annotated[User, 'c']) -> None:
         self.c = c
-        assert c == Inject.Qualifier('c') @ User, 'c doesn"t equal another injected c'
+        assert c == (Inject.Qualifier('c') @ User), "singleton?"
         self.users: list[User] = [a, self.b, self.c]
-        self.minio = Inject @ Minio
-        self.bucket_name = Inject(ProjConfig).minio.bucket_name
-        self.redis = Redis @ Inject
-        self.expires = Inject(ProjConfig).redis.expires
-        print('UserService init', self.minio, self.bucket_name, self.redis, self.expires)
 
     def getall(self):
         return self.users
