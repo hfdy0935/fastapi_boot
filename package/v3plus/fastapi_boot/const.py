@@ -1,7 +1,8 @@
-import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Generic, TypeVar
+
+from fastapi import FastAPI
 
 from fastapi_boot.model import AppNotFoundException, AppRecord, DependencyDuplicatedException
 
@@ -20,9 +21,14 @@ USE_DEP_PREFIX_IN_ENDPOINT = 'fastapi_boot__use_dep_prefix'
 
 
 # use_middleware placeholder
-USE_MIDDLEWARE_PLACEHOLDER = 'fastapi_boot__use_middleware_placeholder'
+USE_MIDDLEWARE_TASK_PLACEHOLDER = 'fastapi_boot__use_middleware_task_placeholder'
 
 
+class BlankPlaceholder: ...
+
+
+# PRIORITY OF EXCEPTION_HANDLER
+EXCEPTION_HANDLER_PRIORITY = 1
 # ------------------------------------------------------- store ------------------------------------------------------ #
 
 
@@ -61,6 +67,10 @@ class DependencyStore(Generic[T]):
             if find.tp == tp:
                 return find.value
 
+    def clear(self):
+        self.type_deps.clear()
+        self.name_deps.clear()
+
 
 class AppStore(Generic[T]):
     def __init__(self):
@@ -77,13 +87,16 @@ class AppStore(Generic[T]):
                 return v
         raise AppNotFoundException(f'Can"t find app of "{path}"')
 
+    def clear(self):
+        self.app_dic.clear()
+
 
 class TasStore:
     def __init__(self):
         # will be called after the app becomes available
-        self.late_tasks: dict[str, list[tuple[Callable, int]]] = {}
+        self.late_tasks: dict[str, list[tuple[Callable[[FastAPI], None], int]]] = {}
 
-    def add_late_task(self, path: str, task: Callable, priority: int):
+    def add_late_task(self, path: str, task: Callable[[FastAPI], None], priority: int):
         if curr_tasks := self.late_tasks.get(path):
             self.late_tasks.update({path: [*curr_tasks, (task, priority)]})
         else:
@@ -94,11 +107,10 @@ class TasStore:
             app = app_store.get(path).app
             late_tasks.sort(key=lambda x: x[1], reverse=True)
             for record in late_tasks:
-                task = record[0]
-                if len(inspect.signature(task).parameters) > 0:
-                    task(app)
-                else:
-                    task()
+                record[0](app)
+
+    def clear(self):
+        self.late_tasks.clear()
 
 
 dep_store = DependencyStore()

@@ -1,7 +1,9 @@
 import random
+from collections.abc import Awaitable
 from inspect import isawaitable
 
 from fastapi import HTTPException
+from fastapi_boot import Autowired, Service
 from redis import Redis
 from src.dao.user import UserDAO
 from src.exception.user import UsernameOrPasswordWrongException
@@ -10,8 +12,6 @@ from src.model.dto.user import LoginDTO, RegisterDTO, UpdateUserInfoDTO
 from src.model.entity.user import UserEntity
 from src.model.vo.user import GetUserInfoVO
 from src.util.jwtt import JWTUtil
-
-from fastapi_boot import Autowired, Service
 
 VERIFY_CODE_CHARS = [
     '1',
@@ -100,8 +100,8 @@ class UserService:
 
     async def verify_cache_code(self, key: str, value: str) -> bool:
         key = f'{self.cache_key_prefix}__{key}'
-        v = self.redis.get(key)
-        return False if v is None else (await v).decode() == value if isawaitable(v) else v.decode() == value
+        v: Awaitable[str] | str = self.redis.get(key)
+        return False if v is None else (await v) == value if isawaitable(v) else v == value
 
     def delete_cache_code(self, key: str):
         key = f'{self.cache_key_prefix}__{key}'

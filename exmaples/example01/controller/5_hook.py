@@ -3,9 +3,8 @@ import time
 from uuid import uuid4
 
 from fastapi import Header, HTTPException, Request
-from middleware.handler import middleware_bar, middleware_foo
-
 from fastapi_boot import Controller, Get, Post, Prefix, use_dep, use_middleware
+from middleware.handler import middleware_bar, middleware_foo
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s  %(levelname)s  %(message)s')
 

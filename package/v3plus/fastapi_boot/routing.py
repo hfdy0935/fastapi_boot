@@ -4,7 +4,7 @@ from functools import wraps
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import Any, Generic, TypeVar
 
-from fastapi import APIRouter, Depends, FastAPI, Response, params
+from fastapi import APIRouter, FastAPI, Response, params
 from fastapi.datastructures import Default
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
@@ -16,20 +16,20 @@ from fastapi_boot.const import (
     CONTROLLER_ROUTE_RECORD,
     REQ_DEP_PLACEHOLDER,
     USE_DEP_PREFIX_IN_ENDPOINT,
-    USE_MIDDLEWARE_PLACEHOLDER,
+    USE_MIDDLEWARE_TASK_PLACEHOLDER,
+    BlankPlaceholder,
     TypeDepRecord,
     app_store,
     dep_store,
 )
-from fastapi_boot.di import inject_init_deps_and_get_instance
+from fastapi_boot.DI import inject_init_deps_and_get_instance
 from fastapi_boot.model import (
     AppRecord,
     BaseHttpRouteItem,
     BaseHttpRouteItemWithoutEndpoint,
     EndpointRouteRecord,
+    LowerHttpMethod,
     PrefixRouteRecord,
-    RequestMethodEnum,
-    RequestMethodStrEnum,
 )
 from fastapi_boot.model import SpecificHttpRouteItemWithoutEndpointAndMethods as SM
 from fastapi_boot.model import WebSocketRouteItem, WebSocketRouteItemWithoutEndpoint
@@ -57,53 +57,52 @@ def trans_path(path: str) -> str:
 def get_use_result(cls: type[T]):
     use_dep_dict = {}
     cls_anno: dict = cls.__dict__.get('__annotations__', {})
-    use_middleware_list: list[Callable] = []
+    use_middleware_list:list = []
     for k, v in cls.__dict__.items():
         # use_dep
         if hasattr(v, REQ_DEP_PLACEHOLDER):
             use_dep_dict.update({k: (cls_anno.get(k), v)})
         # use_middleware
-        if hasattr(v, USE_MIDDLEWARE_PLACEHOLDER) and callable(v):
-            use_middleware_list.append(v)
+        if  isinstance(v,BlankPlaceholder) and (task:=getattr(v,USE_MIDDLEWARE_TASK_PLACEHOLDER)):
+            use_middleware_list.append(task)
     return use_dep_dict, use_middleware_list
 
 
 def trans_endpoint(instance: Any, endpoint: Callable, use_dep_dict: dict):
     """trans endpoint
-    1. add `self` param's default ===> Depends(lambda: instance). set the kind of other params 'KEYWORD_ONLY';
+    1. change `self` param's default ===> Depends(lambda: instance). set kind ===> 'KEYWORD_ONLY';
     2. add use_dep params. replace params. replace signature.
     > or
-    1. new function(without 'self' param) extend endpoint(need add 'self' when call endpoint);
+    1. new function(without 'self' param) extend endpoint(need add 'self' when call it);
     2. add use_dep params. replace params. replace signature.
     """
-
-    def handle_kwargs(self, kwargs: dict):
-        for k in use_dep_dict.keys():
-            req_name = USE_DEP_PREFIX_IN_ENDPOINT + k
-            setattr(self, k, kwargs.pop(req_name))
-            kwargs.get(req_name)  # auto call use_dep result
-
-    @wraps(endpoint)
-    async def async_new_endpoint(*args, **kwargs):
-        handle_kwargs(instance, kwargs)
-        return await endpoint(instance, *args, **kwargs)
-
-    @wraps(endpoint)
-    def sync_new_endpoint(*args, **kwargs):
-        handle_kwargs(instance, kwargs)
-        return endpoint(instance, *args, **kwargs)
-
-    new_endpoint = async_new_endpoint if iscoroutinefunction(endpoint) else sync_new_endpoint
-    params: list[Parameter] = list(signature(new_endpoint).parameters.values())
+    params: list[Parameter] = list(signature(endpoint).parameters.values())
     # remove 'self'
+    has_self = False
     if params and params[0].name == 'self':
+        has_self = True
         params.pop(0)
+
     # add use_dep's deps
     for k, v in use_dep_dict.items():
         req_name = USE_DEP_PREFIX_IN_ENDPOINT + k
         params.append(Parameter(name=req_name, kind=Parameter.KEYWORD_ONLY, annotation=v[0], default=v[1]))
 
+    # replace endpoint
+    @wraps(endpoint)
+    async def new_endpoint(*args, **kwargs):
+        for k in use_dep_dict.keys():
+            req_name = USE_DEP_PREFIX_IN_ENDPOINT + k
+            setattr(instance, k, kwargs.pop(req_name))
+            kwargs.get(req_name)  # auto call use_dep result
+        new_args = (instance, *args) if has_self else args
+        if iscoroutinefunction(endpoint):
+            return await endpoint(*new_args, **kwargs)
+        else:
+            return endpoint(*new_args, **kwargs)
+
     setattr(new_endpoint, '__signature__', signature(new_endpoint).replace(parameters=params))
+
     return new_endpoint
 
 
@@ -119,12 +118,7 @@ def mount_endpoint_to_anchor(
     new_endpoint = trans_endpoint(instance, api_route.record.endpoint, use_dep_dict=use_deps_dict)
     api_route.record.replace_endpoint(new_endpoint).add_prefix(prefix).mount_to(anchor)
     if isinstance(api_route.record, BaseHttpRouteItem):
-        urls_methods.extend(
-            [
-                (anchor.prefix + api_route.record.path, method.upper() if isinstance(method, str) else method.value)
-                for method in api_route.record.methods
-            ]
-        )
+        urls_methods.extend([(anchor.prefix + api_route.record.path, method.upper()) for method in api_route.record.methods])
 
 
 def resolve_class_based_view(
@@ -155,6 +149,7 @@ def resolve_class_based_view(
     # add middleware
     for func in use_middleware_list:
         func(app, urls_methods)
+        
     # collect controller as a type dependency
     dep_store.add_dep_by_type(TypeDepRecord(cls, instance))
     return instance
@@ -212,12 +207,12 @@ class Controller(APIRouter, Generic[T]):
 
     def __getattribute__(self, k: str):
         attr = super().__getattribute__(k)
-        if k in [*RequestMethodStrEnum.__args__, 'api_route', 'websocket_route']:
+        if k in [*LowerHttpMethod, 'api_route', 'websocket', 'websocket_route']:
 
             def decorator(*args, **kwds):
                 def wrapper(endpoint):
                     # @Controller(...).websocket(...)  @Controller(...).websocket_route(...)
-                    if k.upper() in [RequestMethodEnum.WEBSOCKET.value, 'WEBSOCKET_ROUTE']:
+                    if k.upper() in ['websocket', 'websocket_route']:
                         WebSocketRouteItem(endpoint, *args, **kwds).mount_to(self)
                     elif k == 'api_route':
                         BaseHttpRouteItem(endpoint, *args, **kwds).mount_to(self)
@@ -243,7 +238,7 @@ class Req(BaseHttpRouteItemWithoutEndpoint):
             ...
         """
         self.path = trans_path(self.path)
-        route_record = EndpointRouteRecord(BaseHttpRouteItem(endpoint=endpoint, **self.dict))
+        route_record = EndpointRouteRecord(BaseHttpRouteItem(endpoint=endpoint, **self.dict).format_methods())
         setattr(endpoint, CONTROLLER_ROUTE_RECORD, route_record)
         return endpoint
 
@@ -255,37 +250,37 @@ class Get(SM):
 
 class Post(SM):
     def __call__(self, endpoint: T) -> T:
-        return Req(**self.dict, methods=['post'])(endpoint)
+        return Req(**self.dict, methods=['POST'])(endpoint)
 
 
 class Put(SM):
     def __call__(self, endpoint: T) -> T:
-        return Req(**self.dict, methods=['put'])(endpoint)
+        return Req(**self.dict, methods=['PUT'])(endpoint)
 
 
 class Delete(SM):
     def __call__(self, endpoint: T) -> T:
-        return Req(**self.dict, methods=['delete'])(endpoint)
+        return Req(**self.dict, methods=['DELETE'])(endpoint)
 
 
 class Head(SM):
     def __call__(self, endpoint: T) -> T:
-        return Req(**self.dict, methods=['head'])(endpoint)
+        return Req(**self.dict, methods=['HEAD'])(endpoint)
 
 
 class Patch(SM):
     def __call__(self, endpoint: T) -> T:
-        return Req(**self.dict, methods=['patch'])(endpoint)
+        return Req(**self.dict, methods=['PATCH'])(endpoint)
 
 
 class Trace(SM):
     def __call__(self, endpoint: T) -> T:
-        return Req(**self.dict, methods=['options'])(endpoint)
+        return Req(**self.dict, methods=['OPTIONS'])(endpoint)
 
 
 class Options(SM):
     def __call__(self, endpoint: T) -> T:
-        return Req(**self.dict, methods=['trace'])(endpoint)
+        return Req(**self.dict, methods=['TRACE'])(endpoint)
 
 
 class WebSocket(WebSocketRouteItemWithoutEndpoint):

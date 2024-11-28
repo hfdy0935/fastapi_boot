@@ -18,5 +18,5 @@ def f(app: FastAPI):
 
 
 @OnAppProvided(priority=1000)
-def _():
+def _(_):
     print(1)

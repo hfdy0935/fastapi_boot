@@ -1,7 +1,6 @@
 # from minio import Minio
-from redis import Redis
-
 from fastapi_boot import Bean, Inject
+from redis import Redis
 from src.model.config import ProjConfig
 
 
@@ -9,7 +8,7 @@ from src.model.config import ProjConfig
 def get_redis() -> Redis:
     c = (Inject @ ProjConfig).redis
     # if has username and password, write them
-    return Redis(host=c.host, port=c.port, db=c.db)
+    return Redis(host=c.host, port=c.port, db=c.db, decode_responses=True)
 
 
 # if need

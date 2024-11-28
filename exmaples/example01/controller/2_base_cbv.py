@@ -7,7 +7,7 @@ from exception.exp import WsForbidCharException
 from fastapi import HTTPException, Path, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from fastapi_boot import Controller, Delete, Get, Post, Prefix, Put, Socket
+from fastapi_boot import Controller, Delete, Get, Post, Prefix, Put, Req, Socket
 
 
 class Baz(BaseModel):
@@ -35,6 +35,10 @@ async def db_delete_by_id(id: str):
 
 @Controller('/base-cbv', tags=['2. base cbv'])
 class FirstController:
+
+    @Req('/f', methods=['GET'])
+    def f():
+        return True
 
     @Get('/foo', response_model=BaseResp[str])
     def get_foo(self):

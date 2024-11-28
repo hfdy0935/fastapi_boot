@@ -2,7 +2,6 @@ import time
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
-
 from fastapi_boot import ExceptionHandler
 
 

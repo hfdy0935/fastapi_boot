@@ -1,4 +1,7 @@
+from collections.abc import Awaitable
+
 from fastapi import WebSocket
+from fastapi.responses import JSONResponse
 
 from fastapi_boot import ExceptionHandler
 
@@ -12,7 +15,7 @@ class WsForbidCharException(Exception):
 
 
 @ExceptionHandler(WsForbidCharException)
-async def a(ws: WebSocket, exp: WsForbidCharException):
+async def user_ban(ws: WebSocket, exp: WsForbidCharException):
     """"""
-    await ws.close()
     print(f"user {exp.id} has been banned, for sending a message '{exp.msg}' which contains '{exp.forbid_char}'")
+    await ws.close()

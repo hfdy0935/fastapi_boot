@@ -1,7 +1,8 @@
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Generic, Literal, TypeAlias, TypeVar
+from http import HTTPMethod
+from typing import Any, Generic, Literal, TypeVar
 
 from fastapi import APIRouter, FastAPI, Response
 from fastapi.datastructures import Default
@@ -10,49 +11,21 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.types import IncEx
 from fastapi.utils import generate_unique_id
+from starlette.routing import BaseRoute
 
 T = TypeVar('T')
-
-
-# ------------------------------------------------------- enums ------------------------------------------------------ #
-class RequestMethodEnum(Enum):
-    GET = "GET"
-    POST = "POST"
-    PUT = "PUT"
-    DELETE = "DELETE"
-    OPTIONS = "OPTIONS"
-    HEAD = "HEAD"
-    PATCH = "PATCH"
-    TRACE = "TRACE"
-    WEBSOCKET = "WEBSOCKET"
-
-    @staticmethod
-    def contains(k: str):
-        return k.upper() in RequestMethodEnum.__members__
-
-
-RequestMethodStrEnum: TypeAlias = Literal[
-    'get',
+HttpStrMethod = Literal[
     'GET',
-    'post',
     'POST',
-    'put',
     'PUT',
-    'delete',
     'DELETE',
-    'connect',
     'CONNECT',
-    'head',
     'HEAD',
-    'options',
     'OPTIONS',
-    'trace',
     'TRACE',
-    'patch',
     'PATCH',
-    'websocket',
-    'WEBSOCKET',
 ]
+LowerHttpMethod = [m.value.lower() for m in list(HTTPMethod)]
 
 
 # -------------------------------------------------- request params -------------------------------------------------- #
@@ -82,7 +55,7 @@ class SpecificHttpRouteItemWithoutEndpointAndMethods:
     include_in_schema: bool = True
     response_class: type[Response] | Any = field(default_factory=lambda: Default(JSONResponse))
     name: str | None = None
-    route_class_override: type[APIRoute] | None = None
+    callbacks: list[BaseRoute] | None = None
     openapi_extra: dict[str, Any] | None = None
     generate_unique_id_function: Any = field(default_factory=lambda: Default(generate_unique_id))
 
@@ -95,9 +68,7 @@ class SpecificHttpRouteItemWithoutEndpointAndMethods:
 class BaseHttpRouteItemWithoutEndpoint(SpecificHttpRouteItemWithoutEndpointAndMethods):
     """Req params without endpoint"""
 
-    methods: set[RequestMethodEnum | RequestMethodStrEnum] | list[RequestMethodEnum | RequestMethodStrEnum] = field(
-        default_factory=lambda: ['get']
-    )
+    methods: set[HTTPMethod | HttpStrMethod] | list[HTTPMethod | HttpStrMethod] = field(default_factory=lambda: ['GET'])
 
 
 @dataclass
@@ -125,12 +96,14 @@ class BaseHttpRouteItem:
     include_in_schema: bool = True
     response_class: type[Response] | Any = field(default_factory=lambda: Default(JSONResponse))
     name: str | None = None
-    route_class_override: type[APIRoute] | None = None
+    callbacks: list[BaseRoute] | None = None
     openapi_extra: dict[str, Any] | None = None
-    generate_unique_id_function: Any = field(default_factory=lambda: Default(generate_unique_id))
-    methods: set[RequestMethodEnum | RequestMethodStrEnum] | list[RequestMethodEnum | RequestMethodStrEnum] = field(
-        default_factory=lambda: ['get']
-    )
+    generate_unique_id_function: Callable[[APIRoute], str] = field(default_factory=lambda: Default(generate_unique_id))
+    methods: set[str] | list[str] = field(default_factory=lambda: ['GET'])
+
+    def format_methods(self):
+        self.methods = [m.value if isinstance(m, HTTPMethod) else m for m in self.methods]
+        return self
 
     def replace_endpoint(self, endpoint: Callable):
         self.endpoint = endpoint

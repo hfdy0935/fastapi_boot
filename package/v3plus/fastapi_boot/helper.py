@@ -1,19 +1,17 @@
 import concurrent
 import concurrent.futures
 import os
-from asyncio import iscoroutinefunction
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
+import sys
 from typing import Any, TypeVar
 
 from fastapi import Depends, FastAPI, Request, Response, WebSocket
-from starlette.routing import BaseRoute
 
-from fastapi_boot.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_PLACEHOLDER, app_store, task_store
+from fastapi_boot.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_TASK_PLACEHOLDER,EXCEPTION_HANDLER_PRIORITY, BlankPlaceholder, app_store, task_store,dep_store
 from fastapi_boot.model import AppRecord
 from fastapi_boot.util import get_call_filename
-
 T = TypeVar('T')
 
 
@@ -41,7 +39,7 @@ def use_dep(dependency: Callable[..., T] | None, use_cache: bool = True) -> T:
     return value
 
 
-def use_middleware(*func: Callable[[Request, Callable[[Request], Any]], Any]):
+def use_middleware(*dispatches: Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]):
     """add middlewares for current Controller or Prefix, exclude inner Prefix
 
     ```python
@@ -76,23 +74,23 @@ def use_middleware(*func: Callable[[Request, Callable[[Request], Any]], Any]):
     ```
 
     """
-
     def task(app: FastAPI, urls_methods: list[tuple[str, str]]):
-        for f in func:
-            # closure
-            async def wrapper(request: Request, call_next: Callable[[Request], Any], f=f):
-                if (request.url.path, request.method) in urls_methods:
-                    return await f(request, call_next)
-                return await call_next(request)  # no matched middleware
-
-            app.middleware('http')(wrapper)
-
-    setattr(task, USE_MIDDLEWARE_PLACEHOLDER, True)
-    return task
-
-
-# avoid empty routes when using uvicorn.run('main:app', reload=True)
-app_routes_cache: dict[str, list[BaseRoute]] = {}
+        async def wrapper(request: Request, call_next: Callable[[Request], Coroutine[Any, Any, Any]]):
+            if (request.url.path, request.method) in urls_methods:
+                for func in dispatches:
+                    # "call_next" default param ==> save call_next of each loop to avoid "maximum recursion depth exceeded".
+                    # "func" default params ==> save "func" of each loop to avoid repeatation of last func.
+                    async def temp1(request,call_next=call_next,func=func):
+                        async def temp2(request):
+                            return await call_next(request)
+                        return await func(request,temp2)
+                    call_next=temp1
+            return await call_next(request) # if no matched middleware, just call original call_next, else call the accural call_next.
+        app.middleware('http')(wrapper)
+    
+    bp=BlankPlaceholder()
+    setattr(bp, USE_MIDDLEWARE_TASK_PLACEHOLDER, task)
+    return bp
 
 
 def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20, inject_retry_step: float = 0.05):
@@ -107,7 +105,13 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
     Returns:
         _type_: original app
     """
+    # clear store before init
+    app_store.clear()
+    dep_store.clear()
+    task_store.clear()
+    
     provide_filepath = get_call_filename()
+    # the file which provides app
     app_root_dir = os.path.dirname(provide_filepath)
     app_record = AppRecord(app, inject_timeout, inject_retry_step)
     app_store.add(os.path.dirname(provide_filepath), app_record)
@@ -115,7 +119,7 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
     proj_root_dir = os.getcwd()
     app_parts = Path(app_root_dir).parts
     proj_parts = Path(proj_root_dir).parts
-    prefix_parts = app_parts[min(len(app_parts), len(proj_parts)) :]
+    prefix_parts = app_parts[len(proj_parts) :]
     # scan
     dot_paths = []
     for root, _, files in os.walk(app_root_dir):
@@ -128,24 +132,19 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
                     prefix_parts + Path(fullpath.replace('.py', '').replace(app_root_dir, '')).parts[1:]
                 )
                 dot_paths.append(dot_path)
+                # clear module cache if exists
+                if dot_path in sys.modules:
+                    sys.modules.pop(dot_path)
+    
     futures: list[Future] = []
     with ThreadPoolExecutor(max_workers) as executor:
         for dot_path in dot_paths:
-            future = executor.submit(__import__, dot_path)
+            future = executor.submit(__import__,dot_path)
             futures.append(future)
         concurrent.futures.wait(futures)
         # wait all future finished
         for future in futures:
             future.result()
-
-    # add routes cache
-    if cache := app_routes_cache.get(provide_filepath):
-        app.routes.clear()
-        app.routes.extend(cache)
-    else:
-        # update routes cache
-        app_routes_cache.update({provide_filepath: app.routes})
-
     # before return , run tasks
     task_store.run_late_tasks()
     return app
@@ -166,7 +165,7 @@ def OnAppProvided(priority: int = 1):
     ```
     """
 
-    def wrapper(func: Callable[[FastAPI], None] | Callable[[], None]):
+    def wrapper(func: Callable[[FastAPI], None]):
         task_store.add_late_task(get_call_filename(), func, priority)
         return func
 
@@ -176,8 +175,8 @@ def OnAppProvided(priority: int = 1):
 # -------------------------------------------------------------------------------------------------------------------- #
 E = TypeVar('E', bound=Exception)
 
-HttpHandler = Callable[[Request, E], Response] | Callable[[Request, E], Coroutine[Any, Any, Response]]
-WsHandler = Callable[[WebSocket, E], None] | Callable[[WebSocket, E], Coroutine[Any, Any, None]]
+HttpHandler = Callable[[Request, E], Response|Awaitable[Response]]
+WsHandler = Callable[[WebSocket, E],Any]
 
 
 def ExceptionHandler(exp: int | type[E]):
@@ -206,7 +205,7 @@ def ExceptionHandler(exp: int | type[E]):
     """
 
     def decorator(handler: HttpHandler | WsHandler):
-        task_store.add_late_task(get_call_filename(), lambda app: app.add_exception_handler(exp, handler), 1)
+        task_store.add_late_task(get_call_filename(), lambda app: app.add_exception_handler(exp, handler), EXCEPTION_HANDLER_PRIORITY)
         return handler
 
     return decorator
