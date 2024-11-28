@@ -206,14 +206,7 @@ def ExceptionHandler(exp: int | type[E]):
     """
 
     def decorator(handler: HttpHandler | WsHandler):
-        # adjust params num
-        async def wrapper(*args):
-            if iscoroutinefunction(handler):
-                return await handler(*args)
-            else:
-                return handler(*args)
-
-        task_store.add_late_task(get_call_filename(), lambda app: app.add_exception_handler(exp, wrapper), 1)
+        task_store.add_late_task(get_call_filename(), lambda app: app.add_exception_handler(exp, handler), 1)
         return handler
 
     return decorator
