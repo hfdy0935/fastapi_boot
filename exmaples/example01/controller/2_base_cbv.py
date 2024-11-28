@@ -3,9 +3,11 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Generic, TypeVar
 
-from fastapi import HTTPException, Path, Query, WebSocket
-from fastapi_boot import Controller, Delete, Get, Post, Put, Socket
+from exception.exp import WsForbidCharException
+from fastapi import HTTPException, Path, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
+
+from fastapi_boot import Controller, Delete, Get, Post, Prefix, Put, Socket
 
 
 class Baz(BaseModel):
@@ -34,9 +36,6 @@ async def db_delete_by_id(id: str):
 @Controller('/base-cbv', tags=['2. base cbv'])
 class FirstController:
 
-    def __init__(self):
-        self.socket_client_dict: dict[WebSocket, int] = {}
-
     @Get('/foo', response_model=BaseResp[str])
     def get_foo(self):
         return BaseResp(code=200, msg='success', data='foo')
@@ -55,21 +54,39 @@ class FirstController:
             return dict(code=200, msg='success')
         raise HTTPException(status_code=500, detail=f'get an error when delete item {id}')
 
-    async def send_to_others(self, websocket: WebSocket, message: str):
-        sender = self.socket_client_dict.get(websocket)
-        for client, id in self.socket_client_dict.items():
-            if client != websocket:
-                await client.send_text(f'{sender} say: {message}')
+    @Prefix()
+    class WsController:
+        def __init__(self):
+            self.socket_client_dict: dict[int, WebSocket] = {}
+            self.forbid_char = 'a'
 
-    @Socket('/chat')
-    async def chat(self, websocket: WebSocket):
-        id = -1
-        try:
-            await websocket.accept()
-            id = len(self.socket_client_dict) + 1
-            self.socket_client_dict.update({websocket: id})
-            while True:
-                message = await websocket.receive_text()
-                await self.send_to_others(websocket, message)
-        except:
-            logging.info(f'client {id} disconnected')
+        async def send_to_others(self, sender_id: int, message: str):
+            for id, client in self.socket_client_dict.items():
+                if id != sender_id:
+                    await client.send_text(f'{sender_id} say: {message}')
+
+        async def broadcast(self, message: str):
+            await self.send_to_others(-1, message)
+
+        @Socket('/chat')
+        async def chat(self, websocket: WebSocket):
+            id = -1
+            try:
+                id = len(self.socket_client_dict) + 1
+                await websocket.accept()
+                self.socket_client_dict.update({id: websocket})
+                while True:
+                    message = await websocket.receive_text()
+                    # if anyone send a message which contains forbid_char, he will be removed from the chat room.
+                    if self.forbid_char in message:
+                        self.socket_client_dict.pop(id)
+                        raise WsForbidCharException(id, message, self.forbid_char)
+                    await self.send_to_others(id, message)
+            except WebSocketDisconnect:
+                logging.info(f'client {id} disconnected')
+                self.socket_client_dict.pop(id)
+
+        @Post('/broadcast')
+        async def send_broadcast_msg(self, msg: str = Query()):
+            await self.broadcast(msg)
+            return 'ok'

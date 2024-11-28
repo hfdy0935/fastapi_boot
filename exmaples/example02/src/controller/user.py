@@ -2,7 +2,6 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from fastapi_boot import Autowired, Controller, Get, Post, Prefix, Put, use_dep, use_middleware
 from src.dependency.log import write_log
 from src.dependency.login import use_user_login
 from src.dependency.session import get_session
@@ -11,9 +10,11 @@ from src.model.config import ProjConfig
 from src.model.dto.user import LoginDTO, RegisterDTO, UpdateUserInfoDTO
 from src.model.vo.base import BaseResp
 from src.model.vo.user import GetUserInfoVO
-from src.service.account import AccountService
+from src.service.user import UserService
 
-account_service = Autowired @ AccountService
+from fastapi_boot import Autowired, Controller, Get, Post, Prefix, Put, use_dep, use_middleware
+
+account_service = Autowired @ UserService
 
 
 @Controller('/user', tags=['6. register-login example'])
@@ -23,7 +24,7 @@ class UserController:
     __ = use_middleware(middleware_foo, middleware_bar)
     # middleware_bar before  >>  middleware_foo before  >>  write_log  >>  middleware_foo after  >>  middleware_bar after
 
-    def __init__(self, account_service: AccountService, config: ProjConfig):
+    def __init__(self, account_service: UserService, config: ProjConfig):
         # can also use global variable account_service
         self.account_service = account_service
         self.session_key = config.fastapi.session_key

@@ -23,7 +23,7 @@
         const content = document.querySelector('.content');
         const input = document.querySelector('input');
         const btn = document.querySelector('button');
-        const websocket = new WebSocket('http://localhost:8000/fbv/chat');
+        const websocket = new WebSocket('ws://localhost:8000/fbv/chat');
         const generateMessageBox = (flexDirection, message) => {
             const box = document.createElement('div');
             box.textContent = flexDirection === 'row-reverse' ? `${message} : me` : `server: ${message}`;

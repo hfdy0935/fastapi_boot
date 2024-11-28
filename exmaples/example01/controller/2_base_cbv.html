@@ -17,13 +17,16 @@
     <body>
         <div class="content"></div>
         <input type="text" />
-        <button>send</button>
+        <button class="send">send</button>
+        <button class="broadcast">broadcast</button>
     </body>
     <script>
         const content = document.querySelector('.content');
         const input = document.querySelector('input');
-        const btn = document.querySelector('button');
-        const websocket = new WebSocket('http://localhost:8000/base_cbv/chat');
+        const sendBtn = document.querySelector('.send');
+        const broadcastBtn = document.querySelector('.broadcast');
+
+        const websocket = new WebSocket('ws://localhost:8000/base-cbv/chat');
         const generateMessageBox = (flexDirection, message) => {
             const box = document.createElement('div');
             box.textContent = flexDirection === 'row-reverse' ? `${message} : me` : `${message}`;
@@ -42,15 +45,25 @@
         };
         websocket.onerror = (e) => {
             console.error(`websocket error ${e}`);
+            console.log(e);
         };
         websocket.onclose = () => {
             console.log('websocket closed');
         };
-        btn.addEventListener('click', () => {
+        sendBtn.addEventListener('click', () => {
             const message = input.value.trim();
             if (message) {
                 generateMessageBox('row-reverse', message);
                 websocket.send(message);
+                input.value = '';
+            }
+        });
+        broadcastBtn.addEventListener('click', async () => {
+            const message = input.value.trim();
+            if (message) {
+                await fetch(`http://localhost:8000/base-cbv/broadcast?msg=${message}`, {
+                    method: 'post',
+                });
                 input.value = '';
             }
         });

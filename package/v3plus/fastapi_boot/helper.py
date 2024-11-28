@@ -1,12 +1,13 @@
 import concurrent
 import concurrent.futures
 import os
-from collections.abc import Callable
+from asyncio import iscoroutinefunction
+from collections.abc import Callable, Coroutine
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, TypeVar
 
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response, WebSocket
 from starlette.routing import BaseRoute
 
 from fastapi_boot.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_PLACEHOLDER, app_store, task_store
@@ -138,9 +139,12 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
             future.result()
 
     # add routes cache
-    app.routes.extend(app_routes_cache.get(provide_filepath, [])[len(app.routes) :])
-    # update routes cache
-    app_routes_cache.update({provide_filepath: app.routes})
+    if cache := app_routes_cache.get(provide_filepath):
+        app.routes.clear()
+        app.routes.extend(cache)
+    else:
+        # update routes cache
+        app_routes_cache.update({provide_filepath: app.routes})
 
     # before return , run tasks
     task_store.run_late_tasks()
@@ -169,21 +173,47 @@ def OnAppProvided(priority: int = 1):
     return wrapper
 
 
+# -------------------------------------------------------------------------------------------------------------------- #
 E = TypeVar('E', bound=Exception)
+
+HttpHandler = Callable[[Request, E], Response] | Callable[[Request, E], Coroutine[Any, Any, Response]]
+WsHandler = Callable[[WebSocket, E], None] | Callable[[WebSocket, E], Coroutine[Any, Any, None]]
 
 
 def ExceptionHandler(exp: int | type[E]):
     """
-    Declarative style of the following code
     ```python
-    @app.exception_handler(Exception)
-    def _(req: Request, exp: Exception):
+    @ExceptionHandler(MyException)
+    async def _(req: Request, exp: AException):
+        ...
+    ```
+    Declarative style of the following code:
+    ```python
+    @app.exception_handler(AException)
+    async def _(req: Request, exp: AException):
+        ...
+    @app.exception_handler(BException)
+    def _(req: Request, exp: BException):
+        ...
+
+    @app.exception_handler(CException)
+    async def _(req: WebSocket, exp: CException):
+        ...
+    @app.exception_handler(DException)
+    def _(req: WebSocket, exp: DException):
         ...
     ```
     """
 
-    def decorator(handler: Callable[[Request, E], Response]):
-        task_store.add_late_task(get_call_filename(), lambda app: app.add_exception_handler(exp, handler), 1)
+    def decorator(handler: HttpHandler | WsHandler):
+        # adjust params num
+        async def wrapper(*args):
+            if iscoroutinefunction(handler):
+                return await handler(*args)
+            else:
+                return handler(*args)
+
+        task_store.add_late_task(get_call_filename(), lambda app: app.add_exception_handler(exp, wrapper), 1)
         return handler
 
     return decorator

@@ -2,7 +2,6 @@ import random
 from inspect import isawaitable
 
 from fastapi import HTTPException
-from fastapi_boot import Autowired, Service
 from redis import Redis
 from src.dao.user import UserDAO
 from src.exception.user import UsernameOrPasswordWrongException
@@ -11,6 +10,8 @@ from src.model.dto.user import LoginDTO, RegisterDTO, UpdateUserInfoDTO
 from src.model.entity.user import UserEntity
 from src.model.vo.user import GetUserInfoVO
 from src.util.jwtt import JWTUtil
+
+from fastapi_boot import Autowired, Service
 
 VERIFY_CODE_CHARS = [
     '1',
@@ -80,7 +81,7 @@ VERIFY_CODE_CHARS = [
 
 
 @Service
-class AccountService:
+class UserService:
     def __init__(self, redis: Redis):
         self.redis = redis
         self.cache_key_prefix = 'register_verify_code'
@@ -108,7 +109,7 @@ class AccountService:
 
     async def register(self, dto: RegisterDTO) -> str:
         if await self.user_dao.name_exists(dto.username):
-            raise HTTPException(status_code=404, detail='register failed, username already exists')
+            raise HTTPException(402)
         user_entity = await self.user_dao.add(dto)
         token = self.jwt_util.create(user_entity.jwt_payload)
         return token
@@ -117,7 +118,7 @@ class AccountService:
         curr_user = await self.user_dao.exists_and_get(dto)
         if curr_user:
             return self.jwt_util.create(curr_user.jwt_payload)
-        raise UsernameOrPasswordWrongException(400, 'username or password wrong')
+        raise UsernameOrPasswordWrongException(dto)
 
     async def update(self, id: str, dto: UpdateUserInfoDTO):
         user = await UserEntity.filter(id=id).first()

@@ -2,6 +2,7 @@ import logging
 
 from fastapi import Request, WebSocket
 from fastapi.responses import JSONResponse
+
 from fastapi_boot import Controller
 
 logging.basicConfig(level=logging.INFO)

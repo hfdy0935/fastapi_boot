@@ -1,5 +1,6 @@
 from collections.abc import Callable, Sequence
 from enum import Enum
+from functools import wraps
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import Any, Generic, TypeVar
 
@@ -69,21 +70,12 @@ def get_use_result(cls: type[T]):
 
 def trans_endpoint(instance: Any, endpoint: Callable, use_dep_dict: dict):
     """trans endpoint
-    1. add `self` param's default ===> Depends(lambda: instance)
-    2. add the dependencies of `use_dep` to endpoint, return the new endpoint
+    1. add `self` param's default ===> Depends(lambda: instance). set the kind of other params 'KEYWORD_ONLY';
+    2. add use_dep params. replace params. replace signature.
+    > or
+    1. new function(without 'self' param) extend endpoint(need add 'self' when call endpoint);
+    2. add use_dep params. replace params. replace signature.
     """
-    params: list[Parameter] = list(signature(endpoint).parameters.values())
-    # 1. all to keyword_only，replace self
-    for idx, p in enumerate(params):
-        if idx == 0 and p.name == 'self':
-            params[0] = params[0].replace(default=Depends(lambda: instance), kind=Parameter.KEYWORD_ONLY)
-        else:
-            params[idx] = params[idx].replace(kind=Parameter.KEYWORD_ONLY)
-    # 2. add use_dep's deps
-    for k, v in use_dep_dict.items():
-        req_name = USE_DEP_PREFIX_IN_ENDPOINT + k
-        params.append(Parameter(name=req_name, kind=Parameter.KEYWORD_ONLY, annotation=v[0], default=v[1]))
-    # 3. replace old endpoint
 
     def handle_kwargs(self, kwargs: dict):
         for k in use_dep_dict.keys():
@@ -91,16 +83,27 @@ def trans_endpoint(instance: Any, endpoint: Callable, use_dep_dict: dict):
             setattr(self, k, kwargs.pop(req_name))
             kwargs.get(req_name)  # auto call use_dep result
 
-    async def async_new_endpoint(self, *args, **kwargs):
-        handle_kwargs(self, kwargs)
-        return await endpoint(self, *args, **kwargs)
+    @wraps(endpoint)
+    async def async_new_endpoint(*args, **kwargs):
+        handle_kwargs(instance, kwargs)
+        return await endpoint(instance, *args, **kwargs)
 
-    def sync_new_endpoint(self, *args, **kwargs):
-        handle_kwargs(self, kwargs)
-        return endpoint(self, *args, **kwargs)
+    @wraps(endpoint)
+    def sync_new_endpoint(*args, **kwargs):
+        handle_kwargs(instance, kwargs)
+        return endpoint(instance, *args, **kwargs)
 
     new_endpoint = async_new_endpoint if iscoroutinefunction(endpoint) else sync_new_endpoint
-    setattr(new_endpoint, '__signature__', signature(endpoint).replace(parameters=params))
+    params: list[Parameter] = list(signature(new_endpoint).parameters.values())
+    # remove 'self'
+    if params and params[0].name == 'self':
+        params.pop(0)
+    # add use_dep's deps
+    for k, v in use_dep_dict.items():
+        req_name = USE_DEP_PREFIX_IN_ENDPOINT + k
+        params.append(Parameter(name=req_name, kind=Parameter.KEYWORD_ONLY, annotation=v[0], default=v[1]))
+
+    setattr(new_endpoint, '__signature__', signature(new_endpoint).replace(parameters=params))
     return new_endpoint
 
 
@@ -294,6 +297,9 @@ class WebSocket(WebSocketRouteItemWithoutEndpoint):
 
 
 # ------------------------------------------------------ Prefix ------------------------------------------------------ #
+C = TypeVar('C')
+
+
 def Prefix(prefix: str = ""):
     """sub block in controller， can isolate inner deps and outer deps
     ```python
@@ -316,7 +322,7 @@ def Prefix(prefix: str = ""):
     """
     prefix = trans_path(prefix)
 
-    def wrapper(cls: type[T]) -> type[T]:
+    def wrapper(cls: type[C]) -> type[C]:
         prefix_route_record = PrefixRouteRecord(cls=cls, prefix=prefix)
         setattr(cls, CONTROLLER_ROUTE_RECORD, prefix_route_record)
         return cls

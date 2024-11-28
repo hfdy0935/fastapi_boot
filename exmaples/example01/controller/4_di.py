@@ -1,9 +1,10 @@
 import logging
 
 from fastapi import Path, Query
-from fastapi_boot import Autowired, Controller, Delete, Get, Inject, Post, Prefix
 from model.user import User
 from service.user import UserService
+
+from fastapi_boot import Autowired, Controller, Delete, Get, Inject, Post, Prefix
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s  %(levelname)s  %(message)s')
 us01 = Inject(UserService)

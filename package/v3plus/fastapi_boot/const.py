@@ -68,6 +68,7 @@ class AppStore(Generic[T]):
 
     def add(self, path: str, app_record: AppRecord):
         self.app_dic.update({path: app_record})
+        # app_record.app.add_event_handler()
 
     def get(self, path: str) -> AppRecord:
         path = path[0].upper() + path[1:]
