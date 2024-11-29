@@ -3,7 +3,7 @@ import time
 from uuid import uuid4
 
 from fastapi import Header, HTTPException, Request
-from fastapi_boot import Controller, Get, Post, Prefix, use_dep, use_middleware
+from fastapi_boot import Controller, Get, Post, Prefix, use_dep, use_http_middleware
 from middleware.handler import middleware_bar, middleware_foo
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s  %(levelname)s  %(message)s')
@@ -39,7 +39,7 @@ def need_login(token: str = Header()):
 class _:
     session = use_dep(get_session)
     _ = use_dep(write_log)  # no return, use _ as a placeholder
-    __ = use_middleware(middleware_foo, middleware_bar)
+    __ = use_http_middleware(middleware_foo, middleware_bar)
     # middleware_bar before  >>  middleware_foo before  >>  write_log  >>  middleware_foo after  >>  middleware_bar after
 
     @Get()
@@ -53,7 +53,7 @@ class _:
     @Prefix()
     class NeedLoginPrefix:
         token = use_dep(need_login)
-        __ = use_middleware(middleware_bar)
+        __ = use_http_middleware(middleware_bar)
 
         @Post('/after-login')
         def post(self):

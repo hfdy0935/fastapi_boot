@@ -1,4 +1,5 @@
 import logging
+from typing import Annotated
 
 from fastapi import Path, Query
 from fastapi_boot import Autowired, Controller, Delete, Get, Inject, Post, Prefix
@@ -15,7 +16,7 @@ us06 = UserService @ Autowired
 
 
 @Controller('/di', tags=['4. di'])
-class _:
+class DIController:
     us11 = Inject(UserService)
     us12 = Inject @ UserService
     us13 = UserService @ Inject
@@ -23,13 +24,14 @@ class _:
     us15 = Autowired @ UserService
     us16 = UserService @ Autowired
 
-    def __init__(self, us31: UserService):
+    def __init__(self, us31: UserService, a: Annotated[User, 'a']):
         us21 = Inject(UserService)
         us22 = Inject @ UserService
         us23 = UserService @ Inject
         us24 = Autowired(UserService)
         us25 = Autowired @ UserService
         us26 = UserService @ Autowired
+        assert a == Autowired(User, 'a') == Inject.Qualifier('a') @ User
 
         self.us31 = us31
         assert (

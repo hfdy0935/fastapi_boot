@@ -1,6 +1,6 @@
 from typing import Generic, TypeVar
-from pydantic import BaseModel
 
+from pydantic import BaseModel
 
 T = TypeVar('T')
 
@@ -20,4 +20,4 @@ class BaseResp(BaseModel, Generic[T]):
 
     @property
     def dict(self):
-        return dict(code=self.code, msg=self.msg, data=self.data)
+        return self.model_dump()

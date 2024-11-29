@@ -5,6 +5,6 @@ from .DI import Injectable
 from .DI import Injectable as Component
 from .DI import Injectable as Repository
 from .DI import Injectable as Service
-from .helper import ExceptionHandler, OnAppProvided, provide_app, use_dep, use_middleware
+from .helper import ExceptionHandler, OnAppProvided, provide_app, use_dep, use_http_middleware,use_ws_middleware
 from .routing import Controller, Delete, Get, Head, Options, Patch, Post, Prefix, Put, Req, Trace
 from .routing import WebSocket as Socket

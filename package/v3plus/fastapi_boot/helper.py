@@ -9,7 +9,7 @@ from typing import Any, TypeVar
 
 from fastapi import Depends, FastAPI, Request, Response, WebSocket
 
-from fastapi_boot.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_TASK_PLACEHOLDER,EXCEPTION_HANDLER_PRIORITY, BlankPlaceholder, app_store, task_store,dep_store
+from fastapi_boot.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_FIELD_PLACEHOLDER,EXCEPTION_HANDLER_PRIORITY, BlankPlaceholder, app_store, task_store,dep_store
 from fastapi_boot.model import AppRecord,UseMiddlewareRecord
 from fastapi_boot.util import get_call_filename
 T = TypeVar('T')
@@ -39,14 +39,21 @@ def use_dep(dependency: Callable[..., T] | None, use_cache: bool = True) -> T:
     return value
 
 
-def use_middleware(*dispatches: Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]):
-    """add middlewares for current Controller or Prefix, exclude inner Prefix
+
+def _create_bp_from_record(record:UseMiddlewareRecord):
+    bp=BlankPlaceholder()
+    setattr(bp, USE_MIDDLEWARE_FIELD_PLACEHOLDER, record)
+    return bp
+
+def use_http_middleware(*dispatches: Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]):
+    """add http middlewares for current Controller or Prefix with http endpoint, exclude inner Prefix
 
     ```python
+    
     from collections.abc import Callable
     from typing import Any
     from fastapi import Request
-    from fastapi_boot import Controller, use_middleware
+    from fastapi_boot import Controller, use_http_middleware
 
 
     async def middleware_foo(request: Request, call_next: Callable[[Request], Any]):
@@ -63,7 +70,8 @@ def use_middleware(*dispatches: Callable[[Request, Callable[[Request], Coroutine
 
     @Controller('/foo')
     class FooController:
-        _ = use_middleware(middleware_foo, middleware_bar)
+        _ = use_http_middleware(middleware_foo, middleware_bar)
+        
         # 1. middleware_bar before
         # 2. middleware_foo before
         # 3. call endpoint
@@ -74,10 +82,67 @@ def use_middleware(*dispatches: Callable[[Request, Callable[[Request], Coroutine
     ```
 
     """
-    record=UseMiddlewareRecord(list(dispatches))
-    bp=BlankPlaceholder()
-    setattr(bp, USE_MIDDLEWARE_TASK_PLACEHOLDER, record)
-    return bp
+    record=UseMiddlewareRecord(http_dispatches=list(dispatches))
+    return _create_bp_from_record(record)
+
+def use_ws_middleware(*dispatches: Callable[[WebSocket,Callable[[WebSocket],Coroutine[Any,Any,None]]],Any],only_message:bool=False):
+    """add websocket middlewares for current Controller or Prefix with websocket endpoint, exclude inner Prefix
+    - if `only_message` and message's type != 'websocket.senf': will ignore dispatches
+    
+    ```python 
+    
+    from collections.abc import Callable
+    from typing import Any
+    from fastapi import Request, WebSocket
+    from fastapi_boot import Controller, use_http_middleware, middleware_ws_foo
+    
+    async def middleware_ws_foo(websocket: WebSocket, call_next: Callable):
+        print('before ws send data foo') # as pos a
+        res = await call_next(websocket)
+        print('after ws send data foo') # as pos b
+        return res
+
+    async def middleware_ws_bar(websocket: WebSocket, call_next: Callable):
+        print('before ws send data bar') # as pso c
+        res = await call_next()
+        print('after ws send data bar') # as pso d
+        return res
+    
+    async def middleware_bar(request: Request, call_next: Callable[[Request], Any]):
+        print('middleware_bar before') # as pos e
+        resp = await call_next(request)
+        print('middleware_bar after') # as pos f
+        return resp
+     
+     
+    @Controller('/chat')
+    class WsController:
+        _ = use_http_middleware(middleware_bar)
+        ___ = use_ws_middleware(middleware_ws_bar, middleware_ws_foo, only_message=True)
+        
+        @Socket('/chat')
+        async def chat(self, websocket: WebSocket):
+            try:
+                await websocket.accept()
+                while True:
+                    message = await websocket.receive_text()
+                    # a c
+                    await self.send_text(message)
+                    # d b
+            except:
+                ...
+
+        
+        # e a c d b f
+        @Post('/broadcast')
+        async def send_broadcast_msg(self, msg: str = Query()):
+            await self.broadcast(msg)
+            return 'ok'
+    ```
+    
+    """
+    record=UseMiddlewareRecord(ws_dispatches=list(dispatches),ws_only_message=only_message)
+    return _create_bp_from_record(record)
 
 
 def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20, inject_retry_step: float = 0.05):

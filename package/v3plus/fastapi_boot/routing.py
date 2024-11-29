@@ -4,7 +4,7 @@ from functools import reduce, wraps
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import Any, Generic, TypeVar
 
-from fastapi import APIRouter, FastAPI, Response, params
+from fastapi import APIRouter, FastAPI, Response, params,WebSocket as FastAPIWebSocket
 from fastapi.datastructures import Default
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
@@ -16,7 +16,7 @@ from fastapi_boot.const import (
     CONTROLLER_ROUTE_RECORD,
     REQ_DEP_PLACEHOLDER,
     USE_DEP_PREFIX_IN_ENDPOINT,
-    USE_MIDDLEWARE_TASK_PLACEHOLDER,
+    USE_MIDDLEWARE_FIELD_PLACEHOLDER,
     BlankPlaceholder,
     TypeDepRecord,
     app_store,
@@ -63,31 +63,36 @@ def get_use_result(cls: type[T]):
         # use_dep
         if hasattr(v, REQ_DEP_PLACEHOLDER):
             use_dep_dict.update({k: (cls_anno.get(k), v)})
-        # use_middleware
-        if  isinstance(v,BlankPlaceholder) and (attr:=getattr(v,USE_MIDDLEWARE_TASK_PLACEHOLDER)) and isinstance(attr,UseMiddlewareRecord):
+        # collect use_middleware's value
+        if  isinstance(v,BlankPlaceholder) and (attr:=getattr(v,USE_MIDDLEWARE_FIELD_PLACEHOLDER)) and isinstance(attr,UseMiddlewareRecord):
             use_middleware_records.append(attr)
     return use_dep_dict, use_middleware_records
 
 
-def trans_endpoint(instance: Any, endpoint: Callable, use_dep_dict: dict):
+def trans_endpoint(instance: Any, endpoint: Callable, use_dep_dict: dict,use_middleware_records: list[UseMiddlewareRecord],is_websocket:bool):
     """trans endpoint
     1. change `self` param's default ===> Depends(lambda: instance). set kind ===> 'KEYWORD_ONLY';
     2. add use_dep params. replace params. replace signature.
     > or
     1. new function(without 'self' param) extend endpoint(need add 'self' when call it);
     2. add use_dep params. replace params. replace signature.
+    
+    
+    add middleware to WebSocket instance of websocket endpoint'params if is_websocket
     """
     params: list[Parameter] = list(signature(endpoint).parameters.values())
-    # remove 'self'
-    has_self = False
-    if params and params[0].name == 'self':
-        has_self = True
+    has_self=params and params[0].name == 'self'
+    if has_self:
         params.pop(0)
 
     # add use_dep's deps
     for k, v in use_dep_dict.items():
         req_name = USE_DEP_PREFIX_IN_ENDPOINT + k
         params.append(Parameter(name=req_name, kind=Parameter.KEYWORD_ONLY, annotation=v[0], default=v[1]))
+    
+    # async def f(self, websocket: WebSocket):... ==> get param's name 'websocket' with annotation WebSocket
+    ws_param_name= [p.name for p in params if p.annotation==FastAPIWebSocket] if is_websocket else None
+    ws_param_name=ws_param_name[0] if ws_param_name else None
 
     # replace endpoint
     @wraps(endpoint)
@@ -97,6 +102,10 @@ def trans_endpoint(instance: Any, endpoint: Callable, use_dep_dict: dict):
             setattr(instance, k, kwargs.pop(req_name))
             kwargs.get(req_name)  # auto call use_dep result
         new_args = (instance, *args) if has_self else args
+        # add websocket middleware for this endpoint
+        if ws_param_name and (websocket:=kwargs.get(ws_param_name)):
+           for record in use_middleware_records:
+               record.add_ws_middleware(websocket)
         if iscoroutinefunction(endpoint):
             return await endpoint(*new_args, **kwargs)
         else:
@@ -107,19 +116,32 @@ def trans_endpoint(instance: Any, endpoint: Callable, use_dep_dict: dict):
     return new_endpoint
 
 
-def mount_endpoint_to_anchor(
+def resolve_endpoint(
     anchor: APIRouter,
     api_route: EndpointRouteRecord,
     instance: Any,
     use_deps_dict: dict,
     prefix: str,
-    urls_methods: list[tuple[str, str]],
+    use_middleware_records: list[UseMiddlewareRecord],
 ):
-    """mount endpoint to anchor and add middleware"""
-    new_endpoint = trans_endpoint(instance, api_route.record.endpoint, use_dep_dict=use_deps_dict)
-    api_route.record.replace_endpoint(new_endpoint).add_prefix(prefix).mount_to(anchor)
+    """
+    1. trans_endpoint
+    2. add websocket middleware to websocket endpoint
+    3. mount endpoint to anchor and add middleware"""
+    path=anchor.prefix + api_route.record.path
+    is_websocket=False
+    # if http, add to use_middleware_records
     if isinstance(api_route.record, BaseHttpRouteItem):
-        urls_methods.extend([(anchor.prefix + api_route.record.path, method.upper()) for method in api_route.record.methods])
+        urls_methods=[(path, method.upper()) for method in api_route.record.methods]
+        # only first can do well actually
+        for r in use_middleware_records:
+            r.http_urls_methods.extend(urls_methods)
+    elif isinstance(api_route.record,WebSocketRouteItem):
+        # if websocket, add middleware to endpoint
+        is_websocket=True
+    new_endpoint = trans_endpoint(instance, api_route.record.endpoint, use_deps_dict,use_middleware_records,is_websocket)
+    api_route.record.replace_endpoint(new_endpoint).add_prefix(prefix).mount_to(anchor)
+        
 
 
 def resolve_class_based_view(
@@ -136,22 +158,18 @@ def resolve_class_based_view(
     """
     cls: type[T] = route_record.cls
     use_deps_dict, use_middleware_records = get_use_result(cls)
-
     instance: T = inject_init_deps_and_get_instance(app_record, cls)
-    urls_methods: list[tuple[str, str]] = []
 
     for v in cls.__dict__.values():
         if hasattr(v, CONTROLLER_ROUTE_RECORD) and (attr := getattr(v, CONTROLLER_ROUTE_RECORD)):
             new_prefix = prefix + route_record.prefix
             if isinstance(attr, EndpointRouteRecord):
-                mount_endpoint_to_anchor(anchor, attr, instance, use_deps_dict, new_prefix, urls_methods)
+                resolve_endpoint(anchor, attr, instance, use_deps_dict, new_prefix, use_middleware_records)
             elif isinstance(attr, PrefixRouteRecord):
                 resolve_class_based_view(app, anchor, attr, new_prefix, app_record)
     # add middleware
     if use_middleware_records:
-        reduce(lambda a,b:a+b,use_middleware_records).add_to_app(app,urls_methods)
-    # collect controller as a type dependency
-    dep_store.add_dep_by_type(TypeDepRecord(cls, instance))
+        reduce(lambda a,b:a+b,use_middleware_records).add_http_middleware(app)
     return instance
 
 
@@ -197,7 +215,6 @@ class Controller(APIRouter, Generic[T]):
             include_in_schema=include_in_schema,
             generate_unique_id_function=generate_unique_id_function,
         )
-        self.use_middleware_tasks: list[Callable] = []
 
     def __call__(self, cls: type[T]) -> T:
         app_record = app_store.get(get_call_filename())

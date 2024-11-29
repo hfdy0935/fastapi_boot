@@ -21,7 +21,7 @@ USE_DEP_PREFIX_IN_ENDPOINT = 'fastapi_boot__use_dep_prefix'
 
 
 # use_middleware placeholder
-USE_MIDDLEWARE_TASK_PLACEHOLDER = 'fastapi_boot__use_middleware_task_placeholder'
+USE_MIDDLEWARE_FIELD_PLACEHOLDER = 'fastapi_boot__use_middleware_field_placeholder'
 
 
 class BlankPlaceholder: ...

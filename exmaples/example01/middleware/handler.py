@@ -1,7 +1,7 @@
 from collections.abc import Callable, Coroutine
 from typing import Any
 
-from fastapi import Request, Response
+from fastapi import Request, Response, WebSocket
 
 
 async def middleware_foo(request: Request, call_next: Callable[[Request], Coroutine[Any, Any, Response]]):
@@ -16,3 +16,17 @@ async def middleware_bar(request: Request, call_next: Callable[[Request], Corout
     resp = await call_next(request)
     print('middleware_bar after')
     return resp
+
+
+async def middleware_ws_foo(websocket: WebSocket, call_next: Callable):
+    print('before ws send data foo')
+    res = await call_next(websocket)
+    print('after ws send data foo')
+    return res
+
+
+async def middleware_ws_bar(websocket: WebSocket, call_next: Callable):
+    print('before ws send data bar')
+    res = await call_next()
+    print('after ws send data bar')
+    return res

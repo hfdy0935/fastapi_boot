@@ -5,9 +5,9 @@ from typing import Generic, TypeVar
 
 from exception.exp import WsForbidCharException
 from fastapi import HTTPException, Path, Query, WebSocket, WebSocketDisconnect
+from fastapi_boot import Controller, Delete, Get, Post, Prefix, Put, Req, Socket, use_http_middleware, use_ws_middleware
+from middleware.handler import middleware_bar, middleware_ws_bar, middleware_ws_foo
 from pydantic import BaseModel
-
-from fastapi_boot import Controller, Delete, Get, Post, Prefix, Put, Req, Socket
 
 
 class Baz(BaseModel):
@@ -35,6 +35,7 @@ async def db_delete_by_id(id: str):
 
 @Controller('/base-cbv', tags=['2. base cbv'])
 class FirstController:
+    ___ = use_ws_middleware(middleware_ws_bar, middleware_ws_foo, only_message=True)
 
     @Req('/f', methods=['GET'])
     def f():
@@ -60,6 +61,9 @@ class FirstController:
 
     @Prefix()
     class WsController:
+        _ = use_http_middleware(middleware_bar)
+        ___ = use_ws_middleware(middleware_ws_bar, middleware_ws_foo, only_message=True)
+
         def __init__(self):
             self.socket_client_dict: dict[int, WebSocket] = {}
             self.forbid_char = 'a'
@@ -74,6 +78,7 @@ class FirstController:
 
         @Socket('/chat')
         async def chat(self, websocket: WebSocket):
+
             id = -1
             try:
                 id = len(self.socket_client_dict) + 1
