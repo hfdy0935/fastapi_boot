@@ -10,7 +10,7 @@ from typing import Any, TypeVar
 from fastapi import Depends, FastAPI, Request, Response, WebSocket
 
 from fastapi_boot.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_TASK_PLACEHOLDER,EXCEPTION_HANDLER_PRIORITY, BlankPlaceholder, app_store, task_store,dep_store
-from fastapi_boot.model import AppRecord
+from fastapi_boot.model import AppRecord,UseMiddlewareRecord
 from fastapi_boot.util import get_call_filename
 T = TypeVar('T')
 
@@ -74,22 +74,9 @@ def use_middleware(*dispatches: Callable[[Request, Callable[[Request], Coroutine
     ```
 
     """
-    def task(app: FastAPI, urls_methods: list[tuple[str, str]]):
-        async def wrapper(request: Request, call_next: Callable[[Request], Coroutine[Any, Any, Any]]):
-            if (request.url.path, request.method) in urls_methods:
-                for func in dispatches:
-                    # "call_next" default param ==> save call_next of each loop to avoid "maximum recursion depth exceeded".
-                    # "func" default params ==> save "func" of each loop to avoid repeatation of last func.
-                    async def temp1(request,call_next=call_next,func=func):
-                        async def temp2(request):
-                            return await call_next(request)
-                        return await func(request,temp2)
-                    call_next=temp1
-            return await call_next(request) # if no matched middleware, just call original call_next, else call the accural call_next.
-        app.middleware('http')(wrapper)
-    
+    record=UseMiddlewareRecord(list(dispatches))
     bp=BlankPlaceholder()
-    setattr(bp, USE_MIDDLEWARE_TASK_PLACEHOLDER, task)
+    setattr(bp, USE_MIDDLEWARE_TASK_PLACEHOLDER, record)
     return bp
 
 

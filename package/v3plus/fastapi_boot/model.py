@@ -1,10 +1,10 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Coroutine, Sequence
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from http import HTTPMethod
-from typing import Any, Generic, Literal, TypeVar
+from typing import Any, Generic, Literal, Self, TypeVar
 
-from fastapi import APIRouter, FastAPI, Response
+from fastapi import APIRouter, FastAPI, Response,Request
 from fastapi.datastructures import Default
 from fastapi.params import Depends
 from fastapi.responses import JSONResponse
@@ -171,7 +171,7 @@ class PrefixRouteRecord(Generic[T]):
     prefix: str = ""
 
 
-# ---------------------------------------------------- app record ---------------------------------------------------- #
+# ---------------------------------------------------- record ---------------------------------------------------- #
 @dataclass
 class AppRecord:
     """fastapi_record in store"""
@@ -179,6 +179,32 @@ class AppRecord:
     app: FastAPI
     inject_timeout: float
     inject_retry_step: float
+    
+
+@dataclass
+class UseMiddlewareRecord:
+    """use_middleware record in controller"""
+    dispatches:list[Callable[[Request,Callable[[Request],Coroutine[Any,Any,Response]]],Any]]
+    
+    def add_to_app(self,app:FastAPI,urls_methods:list[tuple[str, str]]):
+        """add midleware to app"""
+        async def wrapper(request: Request, call_next: Callable[[Request], Coroutine[Any, Any, Any]]):
+            if (request.url.path, request.method) in urls_methods:
+                print(self.dispatches)
+                for func in self.dispatches:
+                    # "call_next" default param ==> save call_next of each loop to avoid "maximum recursion depth exceeded".
+                    # "func" default params ==> save "func" of each loop to avoid repeatation of last func.
+                    async def temp1(request,call_next=call_next,func=func):
+                        async def temp2(request):
+                            return await call_next(request)
+                        return await func(request,temp2)
+                    call_next=temp1
+            return await call_next(request) # if no matched middleware, just call original call_next, else call the accural call_next.
+        app.middleware('http')(wrapper)
+        
+    def __add__(self,other:'UseMiddlewareRecord')->Self:
+        self.dispatches.extend(other.dispatches)
+        return self
 
 
 # ----------------------------------------------------- exception ---------------------------------------------------- #

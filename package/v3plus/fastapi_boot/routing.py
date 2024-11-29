@@ -1,6 +1,6 @@
 from collections.abc import Callable, Sequence
 from enum import Enum
-from functools import wraps
+from functools import reduce, wraps
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import Any, Generic, TypeVar
 
@@ -30,6 +30,7 @@ from fastapi_boot.model import (
     EndpointRouteRecord,
     LowerHttpMethod,
     PrefixRouteRecord,
+    UseMiddlewareRecord
 )
 from fastapi_boot.model import SpecificHttpRouteItemWithoutEndpointAndMethods as SM
 from fastapi_boot.model import WebSocketRouteItem, WebSocketRouteItemWithoutEndpoint
@@ -57,15 +58,15 @@ def trans_path(path: str) -> str:
 def get_use_result(cls: type[T]):
     use_dep_dict = {}
     cls_anno: dict = cls.__dict__.get('__annotations__', {})
-    use_middleware_list:list = []
+    use_middleware_records:list[UseMiddlewareRecord] = []
     for k, v in cls.__dict__.items():
         # use_dep
         if hasattr(v, REQ_DEP_PLACEHOLDER):
             use_dep_dict.update({k: (cls_anno.get(k), v)})
         # use_middleware
-        if  isinstance(v,BlankPlaceholder) and (task:=getattr(v,USE_MIDDLEWARE_TASK_PLACEHOLDER)):
-            use_middleware_list.append(task)
-    return use_dep_dict, use_middleware_list
+        if  isinstance(v,BlankPlaceholder) and (attr:=getattr(v,USE_MIDDLEWARE_TASK_PLACEHOLDER)) and isinstance(attr,UseMiddlewareRecord):
+            use_middleware_records.append(attr)
+    return use_dep_dict, use_middleware_records
 
 
 def trans_endpoint(instance: Any, endpoint: Callable, use_dep_dict: dict):
@@ -134,7 +135,7 @@ def resolve_class_based_view(
         app_record (AppRecord): app record
     """
     cls: type[T] = route_record.cls
-    use_deps_dict, use_middleware_list = get_use_result(cls)
+    use_deps_dict, use_middleware_records = get_use_result(cls)
 
     instance: T = inject_init_deps_and_get_instance(app_record, cls)
     urls_methods: list[tuple[str, str]] = []
@@ -147,9 +148,8 @@ def resolve_class_based_view(
             elif isinstance(attr, PrefixRouteRecord):
                 resolve_class_based_view(app, anchor, attr, new_prefix, app_record)
     # add middleware
-    for func in use_middleware_list:
-        func(app, urls_methods)
-        
+    if use_middleware_records:
+        reduce(lambda a,b:a+b,use_middleware_records).add_to_app(app,urls_methods)
     # collect controller as a type dependency
     dep_store.add_dep_by_type(TypeDepRecord(cls, instance))
     return instance
