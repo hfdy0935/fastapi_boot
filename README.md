@@ -16,6 +16,8 @@
 
 相比 v2 少量修改，大量增强，更快、更简洁、体积更小
 
+点<a href="https://github.com/hfdy0935/fastapi_boot/tree/main/exmaples" target="_blank">这儿</a>查看例子
+
 ## 2. v2
 
 ```python

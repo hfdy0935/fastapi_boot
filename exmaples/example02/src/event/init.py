@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi_boot import Inject, OnAppProvided
 from src.model.config import ProjConfig
 from tortoise.contrib.starlette import register_tortoise
@@ -20,3 +20,16 @@ def f(app: FastAPI):
 @OnAppProvided(priority=1000)
 def _(_):
     print(1)
+
+
+router = APIRouter(prefix='/api-router-mount-event')
+
+
+@router.post('')
+def post():
+    return 'post'
+
+
+@OnAppProvided()
+def _(app: FastAPI):
+    app.include_router(router)
