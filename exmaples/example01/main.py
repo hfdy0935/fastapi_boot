@@ -18,4 +18,4 @@ provide_app(app)
 print(time.time() - start)
 
 if __name__ == '__main__':
-    uvicorn.run('main:app', reload=True, workers=5)
+    uvicorn.run('main:app', reload=True)

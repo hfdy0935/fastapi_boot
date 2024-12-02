@@ -15,7 +15,8 @@ from fastapi_boot.util import get_call_filename
 T = TypeVar('T')
 
 
-def use_dep(dependency: Callable[..., T] | None, use_cache: bool = True) -> T:
+
+def use_dep(dependency: Callable[..., T|Coroutine[Any,Any,T]] | None, use_cache: bool = True) -> T:
     """Depends of FastAPI with type hint
     - use it as value of a controller's classvar
 
@@ -85,9 +86,9 @@ def use_http_middleware(*dispatches: Callable[[Request, Callable[[Request], Coro
     record=UseMiddlewareRecord(http_dispatches=list(dispatches))
     return _create_bp_from_record(record)
 
-def use_ws_middleware(*dispatches: Callable[[WebSocket,Callable[[WebSocket],Coroutine[Any,Any,None]]],Any],only_message:bool=False):
+def use_ws_middleware(*dispatches: Callable[[WebSocket,Callable[[WebSocket],Coroutine[Any,Any,None]]],Any],message_only:bool=False):
     """add websocket middlewares for current Controller or Prefix with websocket endpoint, exclude inner Prefix
-    - if `only_message` and message's type != 'websocket.senf': will ignore dispatches
+    - if `message_only` and message's type != 'websocket.senf': will ignore dispatches
     
     ```python 
     
@@ -118,7 +119,7 @@ def use_ws_middleware(*dispatches: Callable[[WebSocket,Callable[[WebSocket],Coro
     @Controller('/chat')
     class WsController:
         _ = use_http_middleware(middleware_bar)
-        ___ = use_ws_middleware(middleware_ws_bar, middleware_ws_foo, only_message=True)
+        ___ = use_ws_middleware(middleware_ws_bar, middleware_ws_foo, message_only=True)
         
         @Socket('/chat')
         async def chat(self, websocket: WebSocket):
@@ -141,7 +142,7 @@ def use_ws_middleware(*dispatches: Callable[[WebSocket,Callable[[WebSocket],Coro
     ```
     
     """
-    record=UseMiddlewareRecord(ws_dispatches=list(dispatches),ws_only_message=only_message)
+    record=UseMiddlewareRecord(ws_dispatches=list(dispatches),ws_message_only=message_only)
     return _create_bp_from_record(record)
 
 

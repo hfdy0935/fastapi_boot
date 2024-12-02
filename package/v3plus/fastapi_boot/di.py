@@ -29,7 +29,8 @@ def _inject(app_record: AppRecord, tp: type[T], name: str | None = None) -> T:
             return res
         time.sleep(app_record.inject_retry_step)
         if time.time() - start > app_record.inject_timeout:
-            raise DependencyNotFoundException(f'Dependency "{tp}" not found')
+            name_msg = f"with name '{name}' " if name is not None else ''
+            raise DependencyNotFoundException(f'Dependency "{tp}" {name_msg}not found')
 
 
 def inject_params_deps(app_record: AppRecord, params: list[Parameter]):

@@ -3,11 +3,27 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Generic, TypeVar
 
+from service.user import A
 from exception.exp import WsForbidCharException
 from fastapi import HTTPException, Path, Query, WebSocket, WebSocketDisconnect
-from fastapi_boot import Controller, Delete, Get, Post, Prefix, Put, Req, Socket, use_http_middleware, use_ws_middleware
+from fastapi_boot import (
+    Controller,
+    Delete,
+    Get,
+    Post,
+    Prefix,
+    Put,
+    Req,
+    Socket,
+    use_http_middleware,
+    use_ws_middleware,
+    use_dep,
+    Inject,
+)
 from middleware.handler import middleware_bar, middleware_ws_bar, middleware_ws_foo
 from pydantic import BaseModel
+
+a = Inject(A, 'us')
 
 
 class Baz(BaseModel):
@@ -28,6 +44,11 @@ class BaseResp(BaseModel, Generic[T]):
     data: T | None = None
 
 
+async def get_query_p(p: str = Query()):
+    await asyncio.sleep(0.01)
+    return p
+
+
 async def db_delete_by_id(id: str):
     await asyncio.sleep(0.1)
     return True
@@ -35,19 +56,23 @@ async def db_delete_by_id(id: str):
 
 @Controller('/base-cbv', tags=['2. base cbv'])
 class FirstController:
-    ___ = use_ws_middleware(middleware_ws_bar, middleware_ws_foo, only_message=True)
+    ___ = use_ws_middleware(middleware_ws_bar, middleware_ws_foo, message_only=True)
 
     @Req('/f', methods=['GET'])
-    def f():
+    def f(self):
         return True
 
-    @Get('/foo', response_model=BaseResp[str])
-    def get_foo(self):
-        return BaseResp(code=200, msg='success', data='foo')
+    @Prefix()
+    class _:
+        p = use_dep(get_query_p)
 
-    @Post('/bar')
-    def post_bar(self, p: str = Query()):
-        return p
+        @Get('/foo', response_model=BaseResp[str])
+        def get_foo(self):
+            return BaseResp(code=200, msg='success', data='foo' + self.p)
+
+        @Post('/bar')
+        def post_bar(self, p: str = Query()):
+            return self.p, p
 
     @Put('/baz')
     def put_baz(self, baz: Baz, baz1: Baz1):
@@ -62,7 +87,8 @@ class FirstController:
     @Prefix()
     class WsController:
         _ = use_http_middleware(middleware_bar)
-        ___ = use_ws_middleware(middleware_ws_bar, middleware_ws_foo, only_message=True)
+        ___ = use_ws_middleware(middleware_ws_bar, middleware_ws_foo, message_only=True)
+        ____ = use_ws_middleware(middleware_ws_bar, middleware_ws_foo)
 
         def __init__(self):
             self.socket_client_dict: dict[int, WebSocket] = {}

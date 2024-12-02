@@ -6,7 +6,7 @@ from model.user import User
 a = Inject(User, 'a')
 
 
-@Service
+@Service('us')
 class UserService:
     b = User @ Inject.Qualifier('b')
 
@@ -26,3 +26,13 @@ class UserService:
 
     def delete_by_name(self, name: str):
         self.users = [u for u in self.users if u.name != name]
+
+
+Service(UserService)
+Service('us1')(UserService)
+
+
+class A: ...
+
+
+Service('us')(A)
