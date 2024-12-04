@@ -5,7 +5,7 @@
 
 # :star:特性
 
--   类视图，CBD(class based view)
+-   类视图，CBV(class based view)
 -   控制反转，IOC(Inversion of Controll)
 -   依赖注入，DI(Dependency Injection)
 -   ⚡ 自动扫描目录
