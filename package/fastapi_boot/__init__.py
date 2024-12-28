@@ -1,4 +1,4 @@
-from .DI import Bean
+from .DI import Bean as Bean
 from .DI import Inject as Inject
 from .DI import Inject as Autowired
 from .DI import Injectable as Injectable
