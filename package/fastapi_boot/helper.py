@@ -1,19 +1,23 @@
+from collections.abc import AsyncGenerator
 import concurrent
 import concurrent.futures
+from contextlib import asynccontextmanager
 from dataclasses import asdict, is_dataclass
 import os
 from collections.abc import  Callable, Coroutine
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 import sys
-from typing import Any, TypeVar
-from inspect import iscoroutinefunction
+from typing import Any,  TypeVar
+from inspect import  iscoroutinefunction
+from warnings import warn
 from pydantic import BaseModel
 
 from fastapi import Depends, FastAPI, Request, Response, WebSocket
+from starlette.routing import _DefaultLifespan
 
 from fastapi.responses import JSONResponse
-from fastapi_boot.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_FIELD_PLACEHOLDER,EXCEPTION_HANDLER_PRIORITY, BlankPlaceholder, app_store, task_store,dep_store
+from fastapi_boot.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_FIELD_PLACEHOLDER, BlankPlaceholder, app_store,dep_store
 from fastapi_boot.model import AppRecord,UseMiddlewareRecord
 from fastapi_boot.util import get_call_filename
 T = TypeVar('T')
@@ -169,10 +173,10 @@ def HTTPMiddleware(dispatch:Callable[[Request, Callable[[Request], Coroutine[Any
 
     ```
     """
-    task_store.add_late_task(get_call_filename(),lambda app:app.middleware('http')(dispatch),1)
+    app_store.get(get_call_filename()).app.middleware('http')(dispatch)
     return dispatch
 
-def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20, inject_retry_step: float = 0.05):
+def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 6, inject_retry_step: float = 0.05):
     """enable scan project to collect dependencies which can't been collected automatically
 
     Args:
@@ -187,7 +191,6 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
     # clear store before init
     app_store.clear()
     dep_store.clear()
-    task_store.clear()
     
     provide_filepath = get_call_filename()
     # the file which provides app
@@ -224,32 +227,26 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
         # wait all future finished
         for future in futures:
             future.result()
-    # before return , run tasks
-    task_store.run_late_tasks()
     return app
 
 
-def OnAppProvided(priority: int = 1):
-    """Methods to be executed after the app is provided
-    - decorated function should be sync.
+def Lifespan(func: Callable[[FastAPI],AsyncGenerator[None,None]]):
+    """lifespan, can also app = FastAPI(lifespan=xxx)
+    
     ```python
-    @OnAppProvided()
-    def _(app:FastAPI):
-        print('foo')
-
-    @OnAppProvided(priority=10):
-    def func():
-        print('bar')
-
-    # bar >> foo
+    @Lifespan
+    async def _(app:FastAPI):
+        # init db
+        yield
+        # close db
     ```
     """
-
-    def wrapper(func: Callable[[FastAPI], None]):
-        task_store.add_late_task(get_call_filename(), func, priority)
-        return func
-
-    return wrapper
+    app=app_store.get(get_call_filename()).app
+    if not isinstance(app.router.lifespan_context,_DefaultLifespan):
+        warn(f'Life span has been set, {func} will be ignored')
+    else:
+        app.router.lifespan_context=asynccontextmanager(func)
+    return func
 
 
 # -------------------------------------------------------------------------------------------------------------------- #
@@ -290,12 +287,14 @@ def ExceptionHandler(exp: int | type[E]):
             resp=await handler(*args,**kwds) if iscoroutinefunction(handler) else handler(*args,**kwds)
             if isinstance(resp,BaseModel):
                 resp=resp.model_dump()
-            elif is_dataclass(resp):
+            elif is_dataclass(resp) and not isinstance(resp,type):
                 resp=asdict(resp)
             if isinstance(resp,dict):
-                resp=JSONResponse(resp)
-            return resp
-        task_store.add_late_task(get_call_filename(), lambda app: app.add_exception_handler(exp, wrapper), EXCEPTION_HANDLER_PRIORITY)
+                return JSONResponse(resp)
+            elif isinstance(resp,Response):
+                return resp
+            else:
+                return Response(resp)
+        app_store.get(get_call_filename()).app.add_exception_handler(exp, wrapper)
         return handler
-
     return decorator

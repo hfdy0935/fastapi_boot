@@ -27,9 +27,6 @@ USE_MIDDLEWARE_FIELD_PLACEHOLDER = 'fastapi_boot__use_middleware_field_placehold
 class BlankPlaceholder: ...
 
 
-# PRIORITY OF EXCEPTION_HANDLER
-EXCEPTION_HANDLER_PRIORITY = 1
-
 
 # ------------------------------------------------------- store ------------------------------------------------------ #
 class DependencyStore(Generic[T]):
@@ -97,8 +94,17 @@ class TaskStore:
             self.late_tasks.update({path: [*curr_tasks, (task, priority)]})
         else:
             self.late_tasks.update({path: [(task, priority)]})
+        
+    @property
+    def runnable_tasks(self):
+        res:list[Callable]=[]
+        for path, late_tasks in self.late_tasks.items():
+            app = app_store.get(path).app
+            late_tasks.sort(key=lambda x: x[1], reverse=True)
+            for record in late_tasks:
+                res.append(lambda:record[0](app))
+        return res
             
-
     def run_late_tasks(self):
         for path, late_tasks in self.late_tasks.items():
             app = app_store.get(path).app
@@ -112,4 +118,4 @@ class TaskStore:
 
 dep_store = DependencyStore()
 app_store = AppStore()
-task_store = TaskStore()
+# task_store = TaskStore()
