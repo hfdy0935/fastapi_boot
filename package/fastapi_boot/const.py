@@ -1,8 +1,4 @@
-from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
-
-from fastapi import FastAPI
+from typing import Generic, TypeVar
 
 from fastapi_boot.model import AppNotFoundException, AppRecord, DependencyDuplicatedException
 
@@ -27,39 +23,38 @@ USE_MIDDLEWARE_FIELD_PLACEHOLDER = 'fastapi_boot__use_middleware_field_placehold
 class BlankPlaceholder: ...
 
 
-
 # ------------------------------------------------------- store ------------------------------------------------------ #
 class DependencyStore(Generic[T]):
     def __init__(self):
         # {type: instance}
         self.type_deps: dict[int, T] = {}
         # {name: {type: instance}}
-        self.name_deps: dict[int, dict[str,T]] = {}
+        self.name_deps: dict[int, dict[str, T]] = {}
 
-    def add_dep_by_type(self, tp:type[T],ins:T):
-        tp_id=id(tp)
+    def add_dep_by_type(self, tp: type[T], ins: T):
+        tp_id = id(tp)
         if tp_id in self.type_deps:
             raise DependencyDuplicatedException(f'Dependency {tp} duplicated')
         self.type_deps.update({tp_id: ins})
 
-    def add_dep_by_name(self, name:str,tp:type[T],ins:T):
-        tp_id=id(tp)
-        name_dict=self.name_deps.get(tp_id)
+    def add_dep_by_name(self, name: str, tp: type[T], ins: T):
+        tp_id = id(tp)
+        name_dict = self.name_deps.get(tp_id)
         if name_dict is None:
-            self.name_deps.update({tp_id:{name:ins}})
+            self.name_deps.update({tp_id: {name: ins}})
         else:
-            curr_ins=name_dict.get(name)
+            curr_ins = name_dict.get(name)
             if curr_ins:
                 raise DependencyDuplicatedException(f'Dependency name {name} duplicated')
             else:
-                name_dict.update({name:ins})
-                self.name_deps.update({tp_id:name_dict})
+                name_dict.update({name: ins})
+                self.name_deps.update({tp_id: name_dict})
 
     def inject_by_type(self, tp: type[T]) -> T | None:
-        return self.type_deps.get(id(tp),None)
+        return self.type_deps.get(id(tp), None)
 
     def inject_by_name(self, name: str, tp: type[T]) -> T | None:
-        return self.name_deps.get(id(tp),{}).get(name,None)
+        return self.name_deps.get(id(tp), {}).get(name, None)
 
     def clear(self):
         self.type_deps.clear()
@@ -84,38 +79,5 @@ class AppStore(Generic[T]):
         self.app_dic.clear()
 
 
-class TaskStore:
-    def __init__(self):
-        # will be called after the app becomes available
-        self.late_tasks: dict[str, list[tuple[Callable[[FastAPI], None], int]]] = {}
-
-    def add_late_task(self, path: str, task: Callable[[FastAPI], None], priority: int):
-        if curr_tasks := self.late_tasks.get(path):
-            self.late_tasks.update({path: [*curr_tasks, (task, priority)]})
-        else:
-            self.late_tasks.update({path: [(task, priority)]})
-        
-    @property
-    def runnable_tasks(self):
-        res:list[Callable]=[]
-        for path, late_tasks in self.late_tasks.items():
-            app = app_store.get(path).app
-            late_tasks.sort(key=lambda x: x[1], reverse=True)
-            for record in late_tasks:
-                res.append(lambda:record[0](app))
-        return res
-            
-    def run_late_tasks(self):
-        for path, late_tasks in self.late_tasks.items():
-            app = app_store.get(path).app
-            late_tasks.sort(key=lambda x: x[1], reverse=True)
-            for record in late_tasks:
-                record[0](app)
-
-    def clear(self):
-        self.late_tasks.clear()
-
-
 dep_store = DependencyStore()
 app_store = AppStore()
-# task_store = TaskStore()
