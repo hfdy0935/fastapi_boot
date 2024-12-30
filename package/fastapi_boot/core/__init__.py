@@ -31,8 +31,12 @@ from .routing import (
 
 __all__ = [
     'Bean',
-    'Inject', 'Autowired',
-    'Injectable', 'Component', 'Repository', 'Service',
+    'Inject',
+    'Autowired',
+    'Injectable',
+    'Component',
+    'Repository',
+    'Service',
     'ExceptionHandler',
     'Lifespan',
     'provide_app',
@@ -51,5 +55,5 @@ __all__ = [
     'Put',
     'Req',
     'Trace',
-    'WS'
+    'WS',
 ]

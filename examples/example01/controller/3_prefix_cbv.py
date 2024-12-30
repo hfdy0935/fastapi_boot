@@ -1,6 +1,6 @@
 from fastapi import Header, HTTPException, Query
 
-from fastapi_boot import Controller, Get, Post, Prefix, Put, use_dep
+from fastapi_boot.core import Controller, Get, Post, Prefix, Put, use_dep
 
 
 def process_query_p(p: str = Query()):
@@ -8,7 +8,7 @@ def process_query_p(p: str = Query()):
     return p
 
 
-def need_login(token: str = Header(alias='Authorization')):
+def need_login(token: str = Header(alias='Authorization1')):
     if len(token) < 5:
         raise HTTPException(status_code=401, detail='unAuthorization')
     return token

@@ -9,6 +9,7 @@
 -   控制反转，IOC(Inversion of Controll)
 -   依赖注入，DI(Dependency Injection)
 -   ⚡ 自动扫描目录
+-   类似于MyBatis的装饰器sql
 
 # :memo:快速开始
 

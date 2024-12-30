@@ -2,7 +2,7 @@ from typing import Self
 
 from src.enums.user import GenderEnum
 from src.model.dto.user import UpdateUserInfoDTO
-from src.model.vo.user import GetUserInfoVO
+from src.model.vo.user import UserInfoVO
 from tortoise import fields
 from tortoise.models import Model
 
@@ -26,8 +26,8 @@ class UserEntity(Model):
     def from_dict(cls, dic: dict) -> Self:
         return cls(**dic)
 
-    def to_userinfo_vo(self) -> GetUserInfoVO:
-        return GetUserInfoVO(id=self.id, username=self.username, age=self.age, gender=self.gender, address=self.address)
+    def to_userinfo_vo(self) -> UserInfoVO:
+        return UserInfoVO(id=self.id, username=self.username, age=self.age, gender=self.gender, address=self.address)
 
     async def update_by_update_user_info_dto(self, dto: UpdateUserInfoDTO):
         self.age = dto.age

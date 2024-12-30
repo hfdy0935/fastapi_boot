@@ -1,6 +1,6 @@
 import hashlib
 
-from fastapi_boot import Component
+from fastapi_boot.core import Component
 
 
 @Component

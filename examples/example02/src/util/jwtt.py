@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 import jwt
-from fastapi_boot import Component
+from fastapi_boot.core import Component
 from src.model.config import ProjConfig
 
 

@@ -6,7 +6,7 @@ from typing import Generic, TypeVar
 from service.user import A
 from exception.exp import WsForbidCharException
 from fastapi import HTTPException, Path, Query, WebSocket, WebSocketDisconnect
-from fastapi_boot import (
+from fastapi_boot.core import (
     Controller,
     Delete,
     Get,

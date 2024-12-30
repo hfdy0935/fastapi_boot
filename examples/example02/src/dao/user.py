@@ -1,6 +1,8 @@
 from uuid import uuid4
 
-from fastapi_boot import Repository
+from fastapi_boot.core import Repository
+from fastapi_boot.tortoise_util import Select, Delete
+from src.model.vo.user import UserInfoVO
 from src.model.dto.user import LoginDTO, RegisterDTO
 from src.model.entity.user import UserEntity
 from src.util.md5 import MD5Util
@@ -19,7 +21,6 @@ class UserDAO:
 
     async def name_exists(self, name: str) -> bool:
         """return name exists?"""
-        print(await UserEntity.all())
         return len(await UserEntity.filter(username=name)) > 0
 
     async def exists_and_get(self, dto: LoginDTO) -> UserEntity | None:
@@ -28,5 +29,14 @@ class UserDAO:
         if db_user and self.md5.verify(dto.password, db_user.password):
             return db_user
 
-    async def get_by_id(self, id: str) -> UserEntity | None:
+    @Select("""select id,username,age,gender,address from user where username={dto.username}""")
+    async def get_user_test(self, dto: LoginDTO) -> UserInfoVO: ...
+
+    async def get_by_id1(self, id: str) -> UserEntity | None:
         return await UserEntity.filter(id=id).first()
+
+    @Select('select id,username,age,gender,address from ' + UserEntity.Meta.table + ' where id={user_id}')
+    async def get_by_id2(self, user_id: str) -> UserInfoVO: ...
+
+    @Delete('delete from user where id={id}')
+    async def test_delete(self, id: str): ...

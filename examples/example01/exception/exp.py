@@ -3,7 +3,7 @@ from collections.abc import Awaitable
 from fastapi import WebSocket
 from fastapi.responses import JSONResponse
 
-from fastapi_boot import ExceptionHandler
+from fastapi_boot.core import ExceptionHandler
 
 
 class WsForbidCharException(Exception):

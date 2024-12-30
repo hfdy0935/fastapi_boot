@@ -2,7 +2,7 @@ import logging
 from typing import Annotated
 
 from fastapi import Path, Query
-from fastapi_boot import Autowired, Controller, Delete, Get, Inject, Post, Prefix
+from fastapi_boot.core import Autowired, Controller, Delete, Get, Inject, Post, Prefix
 from model.user import User
 from service.user import UserService
 

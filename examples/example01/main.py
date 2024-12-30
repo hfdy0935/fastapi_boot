@@ -3,7 +3,7 @@ import time
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_boot import provide_app
+from fastapi_boot.core import provide_app
 from starlette.middleware.sessions import SessionMiddleware
 
 start = time.time()

@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from fastapi_boot import Autowired, Controller, Get, Post, Prefix, Put, use_dep, use_http_middleware
+from fastapi_boot.core import Autowired, Controller, Get, Post, Prefix, Put, use_dep, use_http_middleware
 from src.dependency.log import write_log
 from src.dependency.login import use_user_login
 from src.dependency.session import get_session
@@ -10,7 +10,7 @@ from src.middleware.handler import middleware_bar, middleware_foo
 from src.model.config import ProjConfig
 from src.model.dto.user import LoginDTO, RegisterDTO, UpdateUserInfoDTO
 from src.model.vo.base import BaseResp
-from src.model.vo.user import GetUserInfoVO
+from src.model.vo.user import UserInfoVO
 from src.service.user import UserService
 
 account_service = Autowired @ UserService
@@ -62,7 +62,7 @@ class UserController:
         session = use_dep(get_session)
         user_id = use_dep(use_user_login)
 
-        @Get(response_model=BaseResp[GetUserInfoVO | None])
+        @Get(response_model=BaseResp[UserInfoVO | None])
         async def get_user_info(self):
             user = await account_service.get(self.user_id)
             return BaseResp.ok(data=user) if user else BaseResp.err(code=400, msg="user doesn't exist")

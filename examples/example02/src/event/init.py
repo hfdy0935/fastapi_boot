@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from fastapi_boot import Inject, Lifespan
+from fastapi_boot.core import Inject, Lifespan
 from tortoise import Tortoise
 from src.model.config import ProjConfig
 

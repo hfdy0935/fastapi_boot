@@ -1,4 +1,4 @@
-from fastapi_boot import Controller, Get
+from fastapi_boot.core import Controller, Get
 
 
 @Controller('/bar', tags=['app2'])

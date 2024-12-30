@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi_boot import Inject, Service
+from fastapi_boot.core import Inject, Service
 from model.user import User
 
 a = Inject(User, 'a')

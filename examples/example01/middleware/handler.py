@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import Request, Response, WebSocket
 
-from fastapi_boot import HTTPMiddleware
+from fastapi_boot.core import HTTPMiddleware
 
 
 async def middleware_foo(request: Request, call_next: Callable[[Request], Coroutine[Any, Any, Response]]):

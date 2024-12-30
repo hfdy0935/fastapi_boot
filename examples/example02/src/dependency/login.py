@@ -1,5 +1,5 @@
 from fastapi import Header, HTTPException
-from fastapi_boot import Autowired, Inject
+from fastapi_boot.core import Autowired, Inject
 from src.model.config import ProjConfig
 from src.util.jwtt import JWTUtil
 

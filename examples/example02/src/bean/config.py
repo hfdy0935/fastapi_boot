@@ -1,6 +1,6 @@
 import tomllib
 
-from fastapi_boot import Bean
+from fastapi_boot.core import Bean
 from src.model.config import FastAPIConfig, MinIOConfig, ProjConfig, RedisConfig, TortoiseConfig
 
 
@@ -12,5 +12,5 @@ def _() -> ProjConfig:
             redis=RedisConfig(**data.get('redis', {})),
             minio=MinIOConfig(**data.get('minio', {})),
             fastapi=FastAPIConfig(**data.get('fastapi', {})),
-            tortoise=TortoiseConfig(**data.get('tortoise', {}))
+            tortoise=TortoiseConfig(**data.get('tortoise', {})),
         )

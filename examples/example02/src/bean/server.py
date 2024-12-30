@@ -1,5 +1,5 @@
 # from minio import Minio
-from fastapi_boot import Bean, Inject
+from fastapi_boot.core import Bean, Inject
 from redis import Redis
 from src.model.config import ProjConfig
 

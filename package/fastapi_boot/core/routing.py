@@ -12,7 +12,7 @@ from fastapi.utils import generate_unique_id
 from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Lifespan
 
-from fastapi_boot.const import (
+from fastapi_boot.core.const import (
     CONTROLLER_ROUTE_RECORD,
     REQ_DEP_PLACEHOLDER,
     USE_DEP_PREFIX_IN_ENDPOINT,
@@ -21,8 +21,8 @@ from fastapi_boot.const import (
     app_store,
     dep_store,
 )
-from fastapi_boot.DI import inject_init_deps_and_get_instance
-from fastapi_boot.model import (
+from fastapi_boot.core.DI import inject_init_deps_and_get_instance
+from fastapi_boot.core.model import (
     AppRecord,
     BaseHttpRouteItem,
     BaseHttpRouteItemWithoutEndpoint,
@@ -31,9 +31,9 @@ from fastapi_boot.model import (
     PrefixRouteRecord,
     UseMiddlewareRecord,
 )
-from fastapi_boot.model import SpecificHttpRouteItemWithoutEndpointAndMethods as SM
-from fastapi_boot.model import WebSocketRouteItem, WebSocketRouteItemWithoutEndpoint
-from fastapi_boot.util import get_call_filename
+from fastapi_boot.core.model import SpecificHttpRouteItemWithoutEndpointAndMethods as SM
+from fastapi_boot.core.model import WebSocketRouteItem, WebSocketRouteItemWithoutEndpoint
+from fastapi_boot.core.util import get_call_filename
 
 T = TypeVar('T', bound=Callable)
 

@@ -17,9 +17,9 @@ from fastapi import Depends, FastAPI, Request, Response, WebSocket
 from starlette.routing import _DefaultLifespan
 
 from fastapi.responses import JSONResponse
-from fastapi_boot.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_FIELD_PLACEHOLDER, BlankPlaceholder, app_store,dep_store
-from fastapi_boot.model import AppRecord,UseMiddlewareRecord
-from fastapi_boot.util import get_call_filename
+from fastapi_boot.core.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_FIELD_PLACEHOLDER, BlankPlaceholder, app_store,dep_store
+from fastapi_boot.core.model import AppRecord,UseMiddlewareRecord
+from fastapi_boot.core.util import get_call_filename
 T = TypeVar('T')
 
 
@@ -61,7 +61,7 @@ def use_http_middleware(*dispatches: Callable[[Request, Callable[[Request], Coro
     from collections.abc import Callable
     from typing import Any
     from fastapi import Request
-    from fastapi_boot import Controller, use_http_middleware
+    from fastapi_boot.core import Controller, use_http_middleware
 
 
     async def middleware_foo(request: Request, call_next: Callable[[Request], Any]):
@@ -102,7 +102,7 @@ def use_ws_middleware(*dispatches: Callable[[WebSocket,Callable[[WebSocket],Coro
     from collections.abc import Callable
     from typing import Any
     from fastapi import Request, WebSocket
-    from fastapi_boot import Controller, use_http_middleware, middleware_ws_foo
+    from fastapi_boot.core import Controller, use_http_middleware, middleware_ws_foo
     
     async def middleware_ws_foo(websocket: WebSocket, call_next: Callable):
         print('before ws send data foo') # as pos a
@@ -162,7 +162,7 @@ def HTTPMiddleware(dispatch:Callable[[Request, Callable[[Request], Coroutine[Any
     ```python
     from collections.abc import Callable
     from fastapi import Request
-    from fastapi_boot import HTTPMiddleware
+    from fastapi_boot.core import HTTPMiddleware
 
     @HTTPMiddleware
     async def barMiddleware(request: Request, call_next: Callable):
@@ -241,11 +241,7 @@ def Lifespan(func: Callable[[FastAPI],AsyncGenerator[None,None]]):
         # close db
     ```
     """
-    app=app_store.get(get_call_filename()).app
-    if not isinstance(app.router.lifespan_context,_DefaultLifespan):
-        warn(f'Life span has been set, {func} will be ignored')
-    else:
-        app.router.lifespan_context=asynccontextmanager(func)
+    app_store.get(get_call_filename()).app.router.lifespan_context=asynccontextmanager(func)
     return func
 
 

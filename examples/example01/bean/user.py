@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi_boot import Autowired, Bean
+from fastapi_boot.core import Autowired, Bean
 
 from model.user import User
 

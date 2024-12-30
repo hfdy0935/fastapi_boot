@@ -3,14 +3,14 @@ from collections.abc import Awaitable
 from inspect import isawaitable
 
 from fastapi import HTTPException
-from fastapi_boot import Autowired, Service
+from fastapi_boot.core import Autowired, Service
 from redis import Redis
 from src.dao.user import UserDAO
 from src.exception.user import UsernameOrPasswordWrongException
 from src.model.config import ProjConfig
 from src.model.dto.user import LoginDTO, RegisterDTO, UpdateUserInfoDTO
 from src.model.entity.user import UserEntity
-from src.model.vo.user import GetUserInfoVO
+from src.model.vo.user import UserInfoVO
 from src.util.jwtt import JWTUtil
 
 VERIFY_CODE_CHARS = [
@@ -116,6 +116,12 @@ class UserService:
 
     async def login(self, dto: LoginDTO) -> str:
         curr_user = await self.user_dao.exists_and_get(dto)
+        # test
+        t = await self.user_dao.get_user_test(dto)
+        print(t)
+        t2 = await self.user_dao.test_delete('5f053f1d-7fad-4532-9f04-4eaed91d2148')
+        print(f'effect rows: {t2}')
+        print(t)
         if curr_user:
             return self.jwt_util.create(curr_user.jwt_payload)
         raise UsernameOrPasswordWrongException(dto)
@@ -126,6 +132,8 @@ class UserService:
             raise HTTPException(status_code=400, detail="user doesn't exist")
         await user.update_by_update_user_info_dto(dto)
 
-    async def get(self, id: str) -> GetUserInfoVO | None:
-        user = await self.user_dao.get_by_id(id)
-        return user.to_userinfo_vo() if user else None
+    async def get(self, id: str) -> UserInfoVO | None:
+        # user = await self.user_dao.get_by_id1(id)
+        # return user.to_userinfo_vo() if user else None
+        user = await self.user_dao.get_by_id2(id)
+        return user
