@@ -38,7 +38,7 @@ def get_func_params_dict(func: Callable, *args, **kwds):
         func (Callable)
 
     Returns:
-        _type_: _description_
+        _type_: dict
     """
     res = kwds
     for i, (k, v) in enumerate(signature(func).parameters.items()):
@@ -104,6 +104,20 @@ M = TypeVar('M', bound=BaseModel)
 
 
 class Sql:
+    """execute raw sql, always return (effect rows nums, result list[dict])
+    >>> Example
+    ```python
+    @Sql('select * from user where id={id}')
+    async def get_user_by_id(id: str) -> tuple[int, list[dict[str, Any]]]:...
+
+    class Bar:
+        @Sql('select * from user where id={id}')
+        async def get_user_by_id(self,id: str):...
+
+
+    # the result will be like (1, {'name': 'foo', 'age': 20})
+    ```
+    """
     def __init__(self, sql: str, connection_name: str = 'default'):
         self.sql, self.sql_param_names = get_param_names_in_sql(sql)
         self.connection_name = connection_name
@@ -125,6 +139,50 @@ class Sql:
 
 
 class Select(Sql):
+    """execute raw sql, return None | BaseModel_instance | list[BaseModel_instance] | list[dict]
+    >>> Example
+
+    ```python
+    class User(BaseModel):
+        id: str
+        name: str
+        age: int
+
+    @Select('select * from user where id={id}')
+    async def get_user_by_id(id: str) -> User|None:...
+
+    # call in async function
+    # await get_user_by_id('1')      # can also be a keyword param like id='1'
+    # the result will be like User(id='1', name='foo', age=20) or None
+
+
+    # ----------------------------------------------------------------------------------
+
+    @dataclass
+    class UserDTO:
+        agegt: int
+
+    @Repository
+    class Bar:
+        @Select('select * from user where age>{dto.agegt}')
+        async def query_users(self, dto: UserDTO) -> list[User]:...
+
+    # call in async function
+    # await Inject(Bar).query_users(UserDTO(20))
+    # the result will be like [User(id='2', name='bar', age=21), User(id='3', name='baz', age=22)] or []
+
+    # ----------------------------------------------------------------------------------
+    # the return value's type will be list[dict] if the return annotation is None, just like Sql decorator
+    ```
+    First, let T = TypeVar('T', bounds=BaseModel)
+
+    |return annotation|return value|
+    |:--:|:--:|
+    |           T       |      T|None    |
+    |        list[T]    |     list[T]    |
+    |  None|list[dict]  |    list[dict]  |
+
+    """
     @overload
     def __call__(self, func: Callable[..., Coroutine[Any, Any, M]]) -> Callable[..., Coroutine[Any, Any, M|None]]: ...
     @overload
@@ -162,6 +220,29 @@ class Select(Sql):
 
 
 class Insert(Sql):
+    """Has the same function as Delete, Update. Return rows' nums effected by this operation.
+    >>> Example
+
+    ```python
+
+    @Delete('delete from user where id={id}')
+    async def del_user_by_id(id: str):...
+
+    # call in async function
+    # await del_user_by_id('1')      # can also be a keyword param like id='1'
+    # the result will be like 1 or 0
+
+
+    @Repository
+    class Bar:
+        @Update('update user set age=age+1 where name={name}')
+        async def update_user(self, name: str) -> int:...
+
+    # call in async function
+    # await Inject(Bar).update_user('foo')
+    # the result will be like 1 or 0
+    
+    """
     @override
     def __call__(self, func: Callable[..., Coroutine[Any, Any, None | int]]) -> Callable[..., Coroutine[Any, Any, int]]:
         sper_class=super()
