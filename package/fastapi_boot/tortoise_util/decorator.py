@@ -19,7 +19,7 @@ def get_param_names_in_sql(sql: str) -> tuple[str, list[str]]:
     Returns:
         tuple[str, list[str]]: [modified sql, list of param_name]
     """
-    pattern = re.compile(r'\{\s*(.+)\s*\}')
+    pattern = re.compile(r'\{\s*(.*?)\s*\}')
     variables: list[str] = []
 
     def replace_match(match):
@@ -43,10 +43,7 @@ def get_func_params_dict(func: Callable, *args, **kwds):
     res = kwds
     for i, (k, v) in enumerate(signature(func).parameters.items()):
         # *args、**kwds
-        if v.kind in [Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL]:
-            continue
-        # in kwds
-        if k in res:
+        if (v.kind in [Parameter.VAR_POSITIONAL, Parameter.VAR_KEYWORD]) or (k in res):
             continue
         # has default value
         if v.default != inspect._empty:
@@ -93,10 +90,7 @@ def parse_item(v):
 
 def parse_execute_res(target:dict):
     """parse JSONField"""
-    res={}
-    for k,v in target.items():
-        res.update({k:parse_item(v)})
-    return res
+    return {k:parse_item(v) for k,v in target.items()}
         
 
 
@@ -199,11 +193,11 @@ class Select(Sql):
         func: Callable[..., Coroutine[Any, Any, M | list[M] | list[dict] | None]],
     ) -> Callable[..., Coroutine[Any, Any, M | list[M] | list[dict] | None]]:
         anno = func.__annotations__.get('return')
-        sper_class=super()
+        super_class=super()
 
         @wraps(func)
         async def wrapper(*args, **kwds) :
-            lines, resp = await sper_class.__call__(func)(*args, **kwds) # type: ignore
+            lines, resp = await super_class.__call__(func)(*args, **kwds) # type: ignore
             if anno is None:
                 return resp
             elif get_origin(anno) is list:
@@ -245,10 +239,10 @@ class Insert(Sql):
     """
     @override
     def __call__(self, func: Callable[..., Coroutine[Any, Any, None | int]]) -> Callable[..., Coroutine[Any, Any, int]]:
-        sper_class=super()
+        super_class=super()
         @wraps(func)
         async def wrapper(*args, **kwds) -> int:
-            return (await sper_class.__call__(func)(*args, **kwds))[0] # type: ignore
+            return (await super_class.__call__(func)(*args, **kwds))[0] # type: ignore
 
         return wrapper
 

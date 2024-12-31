@@ -149,7 +149,6 @@ class WebSocketRouteItem:
         return self
 
     def mount_to(self, anchor: APIRouter):
-        """no middleware"""
         anchor.add_api_websocket_route(**asdict(self))
 
 
