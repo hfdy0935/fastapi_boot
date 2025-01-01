@@ -5,12 +5,12 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict, is_dataclass
 from functools import lru_cache
 import os
-from collections.abc import  Callable, Coroutine
+from collections.abc import Callable, Coroutine
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 import sys
-from typing import Any,  TypeVar
-from inspect import  iscoroutinefunction
+from typing import Any, TypeVar, cast
+from inspect import iscoroutinefunction
 from warnings import warn
 from pydantic import BaseModel
 
@@ -18,13 +18,20 @@ from fastapi import Depends, FastAPI, Request, Response, WebSocket
 from starlette.routing import _DefaultLifespan
 
 from fastapi.responses import JSONResponse
-from fastapi_boot.core.const import REQ_DEP_PLACEHOLDER, USE_MIDDLEWARE_FIELD_PLACEHOLDER, BlankPlaceholder, app_store,dep_store
-from fastapi_boot.core.model import AppRecord,UseMiddlewareRecord
+from fastapi_boot.core.const import (
+    REQ_DEP_PLACEHOLDER,
+    USE_MIDDLEWARE_FIELD_PLACEHOLDER,
+    BlankPlaceholder,
+    app_store,
+    dep_store,
+)
+from fastapi_boot.core.model import AppRecord, UseMiddlewareRecord
 from fastapi_boot.core.util import get_call_filename
+
 T = TypeVar('T')
 
 
-def use_dep(dependency: Callable[..., T|Coroutine[Any,Any,T]] | None, use_cache: bool = True) -> T:
+def use_dep(dependency: Callable[..., T | Coroutine[Any, Any, T]] | None, use_cache: bool = True) -> T:
     """Depends of FastAPI with type hint
     - use it as value of a controller's classvar
 
@@ -48,17 +55,17 @@ def use_dep(dependency: Callable[..., T|Coroutine[Any,Any,T]] | None, use_cache:
     return value
 
 
-
-def _create_bp_from_record(record:UseMiddlewareRecord):
-    bp=BlankPlaceholder()
+def _create_bp_from_record(record: UseMiddlewareRecord):
+    bp = BlankPlaceholder()
     setattr(bp, USE_MIDDLEWARE_FIELD_PLACEHOLDER, record)
     return bp
+
 
 def use_http_middleware(*dispatches: Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]):
     """add http middlewares for current Controller or Prefix with http endpoint, exclude inner Prefix
 
     ```python
-    
+
     from collections.abc import Callable
     from typing import Any
     from fastapi import Request
@@ -80,7 +87,7 @@ def use_http_middleware(*dispatches: Callable[[Request, Callable[[Request], Coro
     @Controller('/foo')
     class FooController:
         _ = use_http_middleware(middleware_foo, middleware_bar)
-        
+
         # 1. middleware_bar before
         # 2. middleware_foo before
         # 3. call endpoint
@@ -91,20 +98,24 @@ def use_http_middleware(*dispatches: Callable[[Request, Callable[[Request], Coro
     ```
 
     """
-    record=UseMiddlewareRecord(http_dispatches=list(dispatches))
+    record = UseMiddlewareRecord(http_dispatches=list(dispatches))
     return _create_bp_from_record(record)
 
-def use_ws_middleware(*dispatches: Callable[[WebSocket,Callable[[WebSocket],Coroutine[Any,Any,None]]],Any],only_message:bool=False):
+
+def use_ws_middleware(
+    *dispatches: Callable[[WebSocket, Callable[[WebSocket], Coroutine[Any, Any, None]]], Any],
+    only_message: bool = False
+):
     """add websocket middlewares for current Controller or Prefix with websocket endpoint, exclude inner Prefix
     - if `only_message` and message's type != 'websocket.senf': will ignore dispatches
-    
-    ```python 
-    
+
+    ```python
+
     from collections.abc import Callable
     from typing import Any
     from fastapi import Request, WebSocket
     from fastapi_boot.core import Controller, use_http_middleware, middleware_ws_foo
-    
+
     async def middleware_ws_foo(websocket: WebSocket, call_next: Callable):
         print('before ws send data foo') # as pos a
         res = await call_next(websocket)
@@ -116,19 +127,19 @@ def use_ws_middleware(*dispatches: Callable[[WebSocket,Callable[[WebSocket],Coro
         res = await call_next()
         print('after ws send data bar') # as pso d
         return res
-    
+
     async def middleware_bar(request: Request, call_next: Callable[[Request], Any]):
         print('middleware_bar before') # as pos e
         resp = await call_next(request)
         print('middleware_bar after') # as pos f
         return resp
-     
-     
+
+
     @Controller('/chat')
     class WsController:
         _ = use_http_middleware(middleware_bar)
         ___ = use_ws_middleware(middleware_ws_bar, middleware_ws_foo, only_message=True)
-        
+
         @Socket('/chat')
         async def chat(self, websocket: WebSocket):
             try:
@@ -141,20 +152,20 @@ def use_ws_middleware(*dispatches: Callable[[WebSocket,Callable[[WebSocket],Coro
             except:
                 ...
 
-        
+
         # e a c d b f
         @Post('/broadcast')
         async def send_broadcast_msg(self, msg: str = Query()):
             await self.broadcast(msg)
             return 'ok'
     ```
-    
+
     """
-    record=UseMiddlewareRecord(ws_dispatches=list(dispatches),ws_only_message=only_message)
+    record = UseMiddlewareRecord(ws_dispatches=list(dispatches), ws_only_message=only_message)
     return _create_bp_from_record(record)
 
 
-def HTTPMiddleware(dispatch:Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]):
+def HTTPMiddleware(dispatch: Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]):
     """Add global http middleware
 
     Args:
@@ -177,6 +188,7 @@ def HTTPMiddleware(dispatch:Callable[[Request, Callable[[Request], Coroutine[Any
     app_store.get(get_call_filename()).app.middleware('http')(dispatch)
     return dispatch
 
+
 def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 6, inject_retry_step: float = 0.05):
     """enable scan project to collect dependencies which can't been collected automatically
 
@@ -192,7 +204,7 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 6, 
     # clear store before init
     app_store.clear()
     dep_store.clear()
-    
+
     provide_filepath = get_call_filename()
     # the file which provides app
     app_root_dir = os.path.dirname(provide_filepath)
@@ -218,11 +230,11 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 6, 
                 # clear module cache if exists
                 if dot_path in sys.modules:
                     sys.modules.pop(dot_path)
-    
+
     futures: list[Future] = []
     with ThreadPoolExecutor(max_workers) as executor:
         for dot_path in dot_paths:
-            future = executor.submit(__import__,dot_path)
+            future = executor.submit(__import__, dot_path)
             futures.append(future)
         concurrent.futures.wait(futures)
         # wait all future finished
@@ -231,9 +243,9 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 6, 
     return app
 
 
-def Lifespan(func: Callable[[FastAPI],AsyncGenerator[None,None]]):
+def Lifespan(func: Callable[[FastAPI], AsyncGenerator[None, None]]):
     """lifespan, can also app = FastAPI(lifespan=xxx)
-    
+
     ```python
     @Lifespan
     async def _(app:FastAPI):
@@ -242,7 +254,7 @@ def Lifespan(func: Callable[[FastAPI],AsyncGenerator[None,None]]):
         # close db
     ```
     """
-    app_store.get(get_call_filename()).app.router.lifespan_context=asynccontextmanager(func)
+    app_store.get(get_call_filename()).app.router.lifespan_context = asynccontextmanager(func)
     return func
 
 
@@ -250,7 +262,7 @@ def Lifespan(func: Callable[[FastAPI],AsyncGenerator[None,None]]):
 E = TypeVar('E', bound=Exception)
 
 HttpHandler = Callable[[Request, E], Any]
-WsHandler = Callable[[WebSocket, E],Any]
+WsHandler = Callable[[WebSocket, E], Any]
 
 
 def ExceptionHandler(exp: int | type[E]):
@@ -280,24 +292,26 @@ def ExceptionHandler(exp: int | type[E]):
 
     def decorator(handler: HttpHandler | WsHandler):
         # wrap handler
-        async def wrapper(*args,**kwds):
-            resp=await handler(*args,**kwds) if iscoroutinefunction(handler) else handler(*args,**kwds)
-            if isinstance(resp,BaseModel):
-                resp=resp.model_dump()
-            elif is_dataclass(resp) and not isinstance(resp,type):
-                resp=asdict(resp)
-            if isinstance(resp,dict):
+        async def wrapper(*args, **kwds):
+            resp = await handler(*args, **kwds) if iscoroutinefunction(handler) else handler(*args, **kwds)
+            if isinstance(resp, BaseModel):
+                resp = resp.model_dump()
+            elif is_dataclass(resp) and not isinstance(resp, type):
+                resp = asdict(resp)
+            if isinstance(resp, dict):
                 return JSONResponse(resp)
-            elif isinstance(resp,Response):
+            elif isinstance(resp, Response):
                 return resp
             else:
                 return Response(resp)
+
         app_store.get(get_call_filename()).app.add_exception_handler(exp, wrapper)
         return handler
+
     return decorator
 
 
-def Lazy(func: Callable[[],T])->T:
+def Lazy(func: Callable[[], T]) -> T:
     """Combination of property and lru_cache decorator.
     Lazy inject some dependency which will be provided after scanning.
 
@@ -319,4 +333,4 @@ def Lazy(func: Callable[[],T])->T:
             return self.bar
     ```
     """
-    return property(lru_cache(None)(lambda self:func()))
+    return cast(T, property(lru_cache(None)(lambda self: func())))

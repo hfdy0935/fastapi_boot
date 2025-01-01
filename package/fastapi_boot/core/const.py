@@ -37,7 +37,7 @@ class DependencyStore(Generic[T]):
             raise DependencyDuplicatedException(f'Dependency {tp} duplicated')
         self.type_deps.update({tp_id: ins})
 
-    def add_dep_by_name(self, tp: type[T],name: str,  ins: T):
+    def add_dep_by_name(self, tp: type[T], name: str, ins: T):
         tp_id = id(tp)
         name_dict = self.name_deps.get(tp_id)
         if name_dict is None:
@@ -50,13 +50,13 @@ class DependencyStore(Generic[T]):
                 name_dict.update({name: ins})
                 self.name_deps.update({tp_id: name_dict})
 
-    def add_dep(self,tp:type[T],name:str|None,ins:T):
+    def add_dep(self, tp: type[T], name: str | None, ins: T):
         if name is None:
-            self.add_dep_by_type(tp,ins)
+            self.add_dep_by_type(tp, ins)
         else:
-            self.add_dep_by_name(tp,name,ins)
+            self.add_dep_by_name(tp, name, ins)
 
-    def inject_dep(self,tp: type[T],name:str|None):
+    def inject_dep(self, tp: type[T], name: str | None):
         if name is None:
             return self.type_deps.get(id(tp), None)
         else:
