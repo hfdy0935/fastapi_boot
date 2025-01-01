@@ -137,3 +137,6 @@ class UserService:
         # return user.to_userinfo_vo() if user else None
         user = await self.user_dao.get_by_id2(id)
         return user
+
+    async def filyer_by_age(self, agelt: int):
+        return await self.user_dao.get_by_agelt(agelt)

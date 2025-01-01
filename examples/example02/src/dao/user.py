@@ -29,14 +29,19 @@ class UserDAO:
         if db_user and self.md5.verify(dto.password, db_user.password):
             return db_user
 
-    @Select("""select id,username,age,gender,address from user where username={dto.username}""")
+    @Select("""select id,username,age,gender,address from {user} where username={dto.username}""").fill(
+        user=UserEntity.Meta.table
+    )
     async def get_user_test(self, dto: LoginDTO) -> UserInfoVO: ...
 
     async def get_by_id1(self, id: str) -> UserEntity | None:
         return await UserEntity.filter(id=id).first()
 
-    @Select('select id,username,age,gender,address from ' + UserEntity.Meta.table + ' where id={user_id}')
+    @Select('select id,username,age,gender,address from {user} where id={user_id}').fill(user=UserEntity.Meta.table)
     async def get_by_id2(self, user_id: str) -> UserInfoVO: ...
 
-    @Delete('delete from user where id={id}')
+    @Delete('delete from {user} where id={id}').fill(user=UserEntity.Meta.table)
     async def test_delete(self, id: str): ...
+
+    @Select('select * from {user} where age>{agelt}').fill(user=UserEntity.Meta.table)
+    async def get_by_agelt(self, agelt: int): ...

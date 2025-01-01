@@ -12,7 +12,7 @@ T = TypeVar('T')
 # ------------------------------------------------------- public ------------------------------------------------------ #
 
 
-def _inject(app_record: AppRecord, tp: type[T], name: str | None = None) -> T:
+def _inject(app_record: AppRecord, tp: type[T], name: str | None) -> T:
     """inject dependency by type or name
 
     Args:
@@ -25,7 +25,7 @@ def _inject(app_record: AppRecord, tp: type[T], name: str | None = None) -> T:
     """
     start = time.time()
     while True:
-        if res := dep_store.inject_by_type(tp) if name is None else dep_store.inject_by_name(name, tp):
+        if res := dep_store.inject_dep( tp,name):
             return res
         time.sleep(app_record.inject_retry_step)
         if time.time() - start > app_record.inject_timeout:
@@ -55,15 +55,10 @@ def inject_params_deps(app_record: AppRecord, params: list[Parameter]):
             if get_origin(param.annotation) == Annotated:
                 # 2.2.1 Annotated
                 tp, name, *_ = get_args(param.annotation)
-                if isinstance(name, str):
-                    # 2.2.1.1 name is str, as dependency's name to _inject
-                    params_dict.update({param.name: _inject(app_record, tp, name)})
-                else:
-                    # 2.2.1.2 name is not str
-                    params_dict.update({param.name: _inject(app_record, tp)})
+                params_dict.update({param.name: _inject(app_record, tp, name)})
             else:
                 # 2.2.2 other
-                params_dict.update({param.name: _inject(app_record, param.annotation)})
+                params_dict.update({param.name: _inject(app_record, param.annotation,None)})
     return params_dict
 
 
@@ -84,10 +79,7 @@ def collect_bean(app_record: AppRecord, func: Callable, name: str | None = None)
     return_annotations = signature(func).return_annotation
     instance = func(**inject_params_deps(app_record, params))
     tp = return_annotations if return_annotations != _empty else type(instance)
-    if name is None:
-        dep_store.add_dep_by_type(tp,instance)
-    else:
-        dep_store.add_dep_by_name(name,tp, instance)
+    dep_store.add_dep(tp, name,instance)
 
 
 @overload
@@ -153,10 +145,7 @@ def collect_dep(app_record: AppRecord, cls: type, name: str | None = None):
     if hasattr(cls.__init__, '__globals__'):
         cls.__init__.__globals__[cls.__name__] = cls  # avoid error when getting cls in __init__ method
     instance = inject_init_deps_and_get_instance(app_record, cls)
-    if name is None:
-        dep_store.add_dep_by_type(cls, instance)
-    else:
-        dep_store.add_dep_by_name(name,cls, instance)
+    dep_store.add_dep(cls,name, instance)
 
 
 @overload
@@ -266,3 +255,4 @@ class Inject(Generic[T], metaclass=AtUsable):
             latest_named_deps_record: dict[str, str] = {filename: name}
 
         return Cls
+

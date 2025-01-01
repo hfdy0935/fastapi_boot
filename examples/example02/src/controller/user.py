@@ -1,8 +1,8 @@
 from uuid import uuid4
-
-from fastapi import HTTPException
+from fastapi import HTTPException, Query
 from fastapi.responses import JSONResponse
-from fastapi_boot.core import Autowired, Controller, Get, Post, Prefix, Put, use_dep, use_http_middleware
+from fastapi_boot.core import Autowired, Controller, Get, Post, Prefix, Put, use_dep, use_http_middleware, Lazy
+from src.model.foo import Foo
 from src.dependency.log import write_log
 from src.dependency.login import use_user_login
 from src.dependency.session import get_session
@@ -56,6 +56,16 @@ class UserController:
         token = await self.account_service.login(dto)
         headers = {self.token_key: token}
         return JSONResponse(BaseResp.ok().dict, headers=headers)
+
+    foo = Lazy(lambda: Autowired(Foo))
+
+    @Get('foo-lazy-inject')
+    def foo_lazy_inject(self):
+        return BaseResp.ok(data=self.foo)
+
+    @Get('filter')
+    async def filter_by_age(self, agelt: int = Query()):
+        return BaseResp.ok(data=await self.account_service.filyer_by_age(agelt))
 
     @Prefix('/userinfo')
     class NeedLoginPrefix:

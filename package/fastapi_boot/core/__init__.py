@@ -13,6 +13,7 @@ from .helper import (
     use_http_middleware as use_http_middleware,
     use_ws_middleware as use_ws_middleware,
     HTTPMiddleware as HTTPMiddleware,
+    Lazy as Lazy
 )
 from .routing import (
     Controller as Controller,

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
-from fastapi_boot.core import Inject, Lifespan
+from fastapi_boot.core import Inject, Lifespan, Bean
 from tortoise import Tortoise
+from src.model.foo import Foo
 from src.model.config import ProjConfig
 
 
@@ -10,4 +11,6 @@ async def init_db(app: FastAPI):
     url = cfg.tortoise.url
     modules = cfg.tortoise.modules
     await Tortoise.init(db_url=url, modules=dict(models=modules))
+    # need late inject
+    Bean(lambda: Foo('foo', 'fOO'))
     yield

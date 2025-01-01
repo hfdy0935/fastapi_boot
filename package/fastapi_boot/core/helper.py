@@ -3,6 +3,7 @@ import concurrent
 import concurrent.futures
 from contextlib import asynccontextmanager
 from dataclasses import asdict, is_dataclass
+from functools import lru_cache
 import os
 from collections.abc import  Callable, Coroutine
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -294,3 +295,28 @@ def ExceptionHandler(exp: int | type[E]):
         app_store.get(get_call_filename()).app.add_exception_handler(exp, wrapper)
         return handler
     return decorator
+
+
+def Lazy(func: Callable[[],T])->T:
+    """Combination of property and lru_cache decorator.
+    Lazy inject some dependency which will be provided after scanning.
+
+    >>> Example
+
+    ```python
+    @dataclass
+    class User:
+        name: str
+        age: int
+    Bean('bar')(lambda: User('bar', 20))
+
+    @Service
+    class FooService:
+        bar = Lazy(lambda: Inject(User, 'bar'))
+
+        def some_method(self) -> User:
+            # called after sacn
+            return self.bar
+    ```
+    """
+    return property(lru_cache(None)(lambda self:func()))
