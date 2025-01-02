@@ -1,11 +1,22 @@
+from dataclasses import dataclass
 from uuid import uuid4
 
 from fastapi_boot.core import Repository
 from fastapi_boot.tortoise_util import Select, Delete
+from src.enums.user import GenderEnum
 from src.model.vo.user import UserInfoVO
 from src.model.dto.user import LoginDTO, RegisterDTO
 from src.model.entity.user import UserEntity
 from src.util.md5 import MD5Util
+
+
+@dataclass
+class UserInfoVO1:
+    id: str
+    username: str
+    age: int
+    gender: GenderEnum
+    address: list[str]
 
 
 @Repository
@@ -32,10 +43,14 @@ class UserDAO:
     @Select("""select id,username,age,gender,address from {user} where username={dto.username}""").fill(
         user=UserEntity.Meta.table
     )
-    async def get_user_test(self, dto: LoginDTO) -> UserInfoVO: ...
+    async def get_user_test(self, dto: LoginDTO): ...
 
-    async def get_by_id1(self, id: str) -> UserEntity | None:
-        return await UserEntity.filter(id=id).first()
+    async def get_by_id1(self, id: str):
+        return (
+            await Select('select id,username,age,gender,address from {user} where id={user_id}')
+            .fill(user=UserEntity.Meta.table, user_id=id)
+            .execute(UserInfoVO)
+        )
 
     @Select('select id,username,age,gender,address from {user} where id={user_id}').fill(user=UserEntity.Meta.table)
     async def get_by_id2(self, user_id: str) -> UserInfoVO: ...

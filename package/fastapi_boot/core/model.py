@@ -5,7 +5,7 @@ from functools import wraps
 from http import HTTPMethod
 from typing import Any, Generic, Literal, Self, TypeVar
 
-from fastapi import APIRouter, FastAPI, Response, Request, WebSocket
+from fastapi import APIRouter, FastAPI, Response,Request,WebSocket
 from fastapi.datastructures import Default
 from fastapi.params import Depends
 from fastapi.responses import JSONResponse
@@ -179,73 +179,56 @@ class AppRecord:
     app: FastAPI
     inject_timeout: float
     inject_retry_step: float
-
+    
 
 @dataclass
 class UseMiddlewareRecord:
     """use_middleware record in controller"""
-
-    http_urls_methods: list[tuple[str, str]] = field(default_factory=list)
-    http_dispatches: list[Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]] = field(
-        default_factory=list
-    )
-    ws_dispatches: list[Callable[[WebSocket, Callable[[WebSocket], Coroutine[Any, Any, None]]], None]] = field(
-        default_factory=list
-    )
-    ws_only_message: bool = (
-        False  # ws_dispatches only be called if ws_only_message and message's type == 'websocket.send'
-    )
-
-    def add_http_middleware(self, app: FastAPI):
+    http_urls_methods:list[tuple[str, str]]=field(default_factory=list)
+    http_dispatches:list[Callable[[Request,Callable[[Request],Coroutine[Any,Any,Response]]],Any]]=field(default_factory=list)
+    ws_dispatches:list[Callable[[WebSocket,Callable[[WebSocket],Coroutine[Any,Any,None]]],None]]=field(default_factory=list)
+    ws_only_message:bool=False # ws_dispatches only be called if ws_only_message and message's type == 'websocket.send' 
+    
+    def add_http_middleware(self,app:FastAPI):
         """add midleware to app"""
         if not self.http_dispatches:
             return
-
         async def wrapper(request: Request, call_next: Callable[[Request], Coroutine[Any, Any, Any]]):
             if (request.url.path, request.method) in self.http_urls_methods:
                 for func in self.http_dispatches:
                     # "call_next" default param ==> save call_next of each loop to avoid "maximum recursion depth exceeded".
                     # "func" default params ==> save "func" of each loop to avoid repeatation of last func.
-                    async def temp1(request, call_next=call_next, func=func):
+                    async def temp1(request,call_next=call_next,func=func):
                         async def temp2(request):
                             return await call_next(request)
-
-                        return await func(request, temp2)
-
-                    call_next = temp1
-            return await call_next(
-                request
-            )  # if no matched middleware, just call original call_next, else call the accural call_next.
-
+                        return await func(request,temp2)
+                    call_next=temp1
+            return await call_next(request) # if no matched middleware, just call original call_next, else call the accural call_next.
         app.middleware('http')(wrapper)
-
-    def add_ws_middleware(self, websocket: WebSocket):
+    
+    
+    def add_ws_middleware(self,websocket:WebSocket):
         if not self.ws_dispatches:
             return
-
         def wrapper(target: Callable):
             """target: method need to be replace"""
-
-            async def wrapper2(*args, **kwargs):
+            async def wrapper2(*args,**kwargs):
                 nonlocal target
-                call_next = target
+                call_next=target
                 for func in self.ws_dispatches:
                     # partial param websocket as placeholder
-                    async def temp1(websocket=websocket, call_next=call_next, func=func):
+                    async def temp1(websocket=websocket,call_next=call_next,func=func):
                         async def temp2(websocket=websocket):
-                            return await call_next(*args, **kwargs)
-
-                        not_message = (args[0] or {}).get('type', '') != 'websocket.send'
-                        return await temp2() if (not_message and self.ws_only_message) else await func(websocket, temp2)
-
-                    call_next = temp1
+                            return await call_next(*args,**kwargs)
+                        not_message=(args[0] or {}).get('type','')!='websocket.send'
+                        return await temp2() if (not_message and self.ws_only_message) else await func(websocket,temp2)
+                    call_next=temp1
                 return await call_next()
-
             return wrapper2
+        websocket.send=wraps(websocket.send)(wrapper(websocket.send))
 
-        websocket.send = wraps(websocket.send)(wrapper(websocket.send))
-
-    def __add__(self, other: 'UseMiddlewareRecord') -> Self:
+        
+    def __add__(self,other:'UseMiddlewareRecord')->Self:
         """merge http_dispatches in a controller or a prefix"""
         self.http_dispatches.extend(other.http_dispatches)
         return self

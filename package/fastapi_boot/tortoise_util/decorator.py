@@ -1,4 +1,4 @@
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Sequence
 from functools import wraps
 from inspect import signature
 import inspect
@@ -145,6 +145,13 @@ class Sql:
         self.sql, self.sql_pres_param_names = fill_params_in_sql(self.sql, kwds, FILL_PLACEHOLDER)
         return self
 
+    async def execute(self) -> tuple[int, list[dict[Any, Any]]]:
+        """execute sql, not as decorator"""
+
+        async def func(): ...
+
+        return await self(func)()  # no params
+
     def __call__(
         self, func: Callable[..., Coroutine[Any, Any, None | tuple[int, list[dict]]]]
     ) -> Callable[..., Coroutine[Any, Any, tuple[int, list[dict]]]]:
@@ -157,7 +164,6 @@ class Sql:
             func_params_dict = get_func_params_dict(func, *args, **kwds)
             sql_params = get_prestatement_params(self.sql_pres_param_names, func_params_dict)
             # execute
-            print(self.sql, sql_params)
             rows, resp = await Tortoise.get_connection(self.connection_name).execute_query(self.sql, sql_params)
             if is_sqlite:
                 resp = list(map(dict, resp))
@@ -214,6 +220,21 @@ class Select(Sql):
     """
 
     @overload
+    async def execute(self, expect: type[M]) -> M: ...
+    @overload
+    async def execute(self, expect: type[Sequence[M]]) -> list[M]: ...
+    @overload
+    async def execute(self, expect: None | type[Sequence[dict]] = None) -> list[dict]: ...
+    @override
+    async def execute(
+        self, expect: type[M] | type[Sequence[M]] | None | type[Sequence[dict]] = None
+    ) -> M | list[M] | list[dict]:
+        async def func(): ...
+
+        setattr(func, '__annotation__', {'return': expect})
+        return await self(func)()
+
+    @overload
     def __call__(self, func: Callable[..., Coroutine[Any, Any, M]]) -> Callable[..., Coroutine[Any, Any, M | None]]: ...
     @overload
     def __call__(
@@ -226,12 +247,12 @@ class Select(Sql):
     @override
     def __call__(
         self,
-        func: Callable[..., Coroutine[Any, Any, M | list[M] | list[dict] | None]],
+        func: Callable[..., Coroutine[Any, Any, M | list[M] | list[dict] | None]] | None,
     ) -> Callable[..., Coroutine[Any, Any, M | list[M] | list[dict] | None]]:
         anno = func.__annotations__.get('return')
         super_class = super()
 
-        @wraps(func)
+        @wraps(func)  # type: ignore
         async def wrapper(*args, **kwds):
             lines, resp = await super_class.__call__(func)(*args, **kwds)  # type: ignore
             if anno is None:
@@ -273,6 +294,22 @@ class Insert(Sql):
     # the result will be like 1 or 0
 
     """
+
+    @override
+    async def execute(self):
+        """execute sql without decorated function
+
+        >>> Exampe
+
+        ```python
+        rows: int = @Insert('insert into {user} values("foo", 20, 1)).fill(user=UserDO.Meta.table).execute()
+        ```
+
+        """
+
+        async def func(): ...
+
+        return await self(func)()
 
     @override
     def __call__(self, func: Callable[..., Coroutine[Any, Any, None | int]]) -> Callable[..., Coroutine[Any, Any, int]]:

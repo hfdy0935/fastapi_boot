@@ -13,71 +13,12 @@ from src.model.entity.user import UserEntity
 from src.model.vo.user import UserInfoVO
 from src.util.jwtt import JWTUtil
 
-VERIFY_CODE_CHARS = [
-    '1',
-    '2',
-    '3',
-    '4',
-    '5',
-    '6',
-    '7',
-    '8',
-    '9',
-    'a',
-    'b',
-    'c',
-    'd',
-    'e',
-    'f',
-    'g',
-    'h',
-    'i',
-    'j',
-    'k',
-    'l',
-    'm',
-    'n',
-    'o',
-    'p',
-    'q',
-    'r',
-    's',
-    't',
-    'u',
-    'v',
-    'w',
-    'x',
-    'y',
-    'z',
-    'A',
-    'B',
-    'C',
-    'D',
-    'E',
-    'F',
-    'G',
-    'H',
-    'I',
-    'J',
-    'K',
-    'L',
-    'M',
-    'N',
-    'O',
-    'P',
-    'Q',
-    'R',
-    'S',
-    'T',
-    'U',
-    'V',
-    'W',
-    'X',
-    'Y',
-    'Z',
-    '@',
-    '#',
-]
+VERIFY_CODE_CHARS = (
+    [str(i) for i in range(0, 10)]
+    + [chr(i) for i in range(97, 123)]
+    + [chr(i) for i in range(65, 91)]
+    + ['@', '#', '_']
+)
 
 
 @Service
@@ -135,7 +76,9 @@ class UserService:
     async def get(self, id: str) -> UserInfoVO | None:
         # user = await self.user_dao.get_by_id1(id)
         # return user.to_userinfo_vo() if user else None
-        user = await self.user_dao.get_by_id2(id)
+        a = await self.user_dao.get_by_id2(id)
+        print(a)
+        user = await self.user_dao.get_by_id1(id)
         return user
 
     async def filyer_by_age(self, agelt: int):
