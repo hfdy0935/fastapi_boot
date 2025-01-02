@@ -28,7 +28,8 @@ def fill_params_in_sql(sql: str, kwds: dict, placeholder: str) -> tuple[str, lis
     def replace_match(match):
         variable_name = match.group(1)
         try:
-            return str(get_prestatement_params([variable_name], kwds)[0])
+            pre_param=get_prestatement_params([variable_name], kwds)[0]
+            return f"'{pre_param}'" if isinstance(pre_param,str) else str(pre_param)
         except:
             variables.append(variable_name)
             return placeholder
@@ -146,11 +147,15 @@ class Sql:
         return self
 
     async def execute(self) -> tuple[int, list[dict[Any, Any]]]:
-        """execute sql, not as decorator"""
+        """execute sql, not as a decorator
+
+        Returns:
+            tuple[int, list[dict[Any, Any]]]: same as sql decorator's result
+        """
 
         async def func(): ...
 
-        return await self(func)()  # no params
+        return await self(func)()
 
     def __call__(
         self, func: Callable[..., Coroutine[Any, Any, None | tuple[int, list[dict]]]]
@@ -220,7 +225,7 @@ class Select(Sql):
     """
 
     @overload
-    async def execute(self, expect: type[M]) -> M: ...
+    async def execute(self, expect: type[M]) -> M|None: ...
     @overload
     async def execute(self, expect: type[Sequence[M]]) -> list[M]: ...
     @overload
@@ -228,10 +233,10 @@ class Select(Sql):
     @override
     async def execute(
         self, expect: type[M] | type[Sequence[M]] | None | type[Sequence[dict]] = None
-    ) -> M | list[M] | list[dict]:
+    ) -> M | None | list[M] | list[dict]:
         async def func(): ...
 
-        setattr(func, '__annotation__', {'return': expect})
+        setattr(func, '__annotations__', {'return': expect})
         return await self(func)()
 
     @overload
@@ -302,7 +307,7 @@ class Insert(Sql):
         >>> Exampe
 
         ```python
-        rows: int = @Insert('insert into {user} values("foo", 20, 1)).fill(user=UserDO.Meta.table).execute()
+        rows: int = await Insert('insert into {user} values("foo", 20, 1)).fill(user=UserDO.Meta.table).execute()
         ```
 
         """
