@@ -155,12 +155,10 @@ def resolve_endpoint(
 
 
 def resolve_class_based_view(
-    app: FastAPI, anchor: APIRouter, route_record: PrefixRouteRecord[T], prefix: str, app_record: AppRecord
+   anchor: APIRouter, route_record: PrefixRouteRecord[T], prefix: str, app_record: AppRecord
 ):
     """
-
     Args:
-        app (FastAPI): FastAPI instance
         anchor (APIRouter): mount anchor
         route_record (PrefixRouteRecord[T])
         prefix (str): prefix of request path
@@ -176,10 +174,10 @@ def resolve_class_based_view(
             if isinstance(attr, EndpointRouteRecord):
                 resolve_endpoint(anchor, attr, instance, use_deps_dict, new_prefix, use_middleware_records)
             elif isinstance(attr, PrefixRouteRecord):
-                resolve_class_based_view(app, anchor, attr, new_prefix, app_record)
+                resolve_class_based_view(anchor, attr, new_prefix, app_record)
     # add middleware
     if use_middleware_records:
-        reduce(lambda a, b: a + b, use_middleware_records).add_http_middleware(app)
+        reduce(lambda a, b: a + b, use_middleware_records).add_http_middleware(app_record.app)
     return instance
 
 
@@ -228,7 +226,7 @@ class Controller(APIRouter, Generic[T]):
 
     def __call__(self, cls: type[T]) -> T:
         app_record = app_store.get(get_call_filename())
-        instance = resolve_class_based_view(app_record.app, self, PrefixRouteRecord(cls), '', app_record)
+        instance = resolve_class_based_view(self, PrefixRouteRecord(cls), '', app_record)
         app_record.app.include_router(self)
         return instance
 

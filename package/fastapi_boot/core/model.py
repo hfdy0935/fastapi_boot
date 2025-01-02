@@ -210,7 +210,7 @@ class UseMiddlewareRecord:
     def add_ws_middleware(self,websocket:WebSocket):
         if not self.ws_dispatches:
             return
-        def wrapper(target: Callable):
+        def wrapper1(target: Callable):
             """target: method need to be replace"""
             async def wrapper2(*args,**kwargs):
                 nonlocal target
@@ -225,7 +225,7 @@ class UseMiddlewareRecord:
                     call_next=temp1
                 return await call_next()
             return wrapper2
-        websocket.send=wraps(websocket.send)(wrapper(websocket.send))
+        websocket.send=wraps(websocket.send)(wrapper1(websocket.send))
 
         
     def __add__(self,other:'UseMiddlewareRecord')->Self:

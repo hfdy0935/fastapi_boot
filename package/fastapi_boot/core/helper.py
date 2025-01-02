@@ -333,4 +333,4 @@ def Lazy(func: Callable[[], T]) -> T:
             return self.bar
     ```
     """
-    return cast(T, property(lru_cache(None)(lambda self: func())))
+    return cast(T, property(lru_cache(None)(lambda _: func())))
