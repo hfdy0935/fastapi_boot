@@ -154,7 +154,9 @@ def resolve_endpoint(
     api_route.record.replace_endpoint(new_endpoint).add_prefix(prefix).mount_to(anchor)
 
 
-def resolve_class_based_view(anchor: APIRouter, route_record: PrefixRouteRecord[T], prefix: str, app_record: AppRecord):
+def resolve_class_based_view(
+   anchor: APIRouter, route_record: PrefixRouteRecord[T], prefix: str, app_record: AppRecord
+):
     """
     Args:
         anchor (APIRouter): mount anchor

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Document</title>
+        <style>
+            fieldset {
+                width: 400px;
+                height: 100px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                border-radius: 5px;
+                margin: 20px;
+            }
+            button {
+                margin: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <fieldset>
+            <legend>chat app demo</legend>
+            <label>
+                <input type="text" />
+            </label>
+            <button class="send">send</button>
+            <button class="broadcast">broadcast</button>
+        </fieldset>
+    </body>
+    <script>
+        const input = document.querySelector('input');
+        const sendBtn = document.querySelector('.send');
+        const broadcaseBtn = document.querySelector('.broadcast');
+        const websocket = new WebSocket('ws://localhost:8000/chat');
+        websocket.onopen = () => {
+            console.log('websocket connected...');
+        };
+        websocket.onmessage = e => {
+            console.log(e.data);
+        };
+        websocket.onerror = e => {
+            console.error(e);
+        };
+        websocket.onclose = () => {
+            console.log('websocket disconnected');
+        };
+        const getNowDateTimeStr = () => {
+            const now = new Date();
+            return `${now.getFullYear()}-${
+                now.getMonth() + 1
+            }-${now.getDate()} ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
+        };
+        sendBtn.addEventListener('click', () => {
+            if (!input.value.trim()) return;
+            websocket.send(
+                JSON.stringify({
+                    msg: input.value,
+                    time: getNowDateTimeStr()
+                })
+            );
+            input.value = '';
+        });
+        broadcaseBtn.addEventListener('click', async () => {
+            if (!input.value.trim()) return;
+            await fetch('http://localhost:8000/chat/broadcast', {
+                method: 'POST',
+                body: JSON.stringify({
+                    msg: input.value,
+                    time: getNowDateTimeStr()
+                }),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+        });
+    </script>
+</html>

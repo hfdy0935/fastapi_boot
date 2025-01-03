@@ -27,28 +27,26 @@ class BlankPlaceholder: ...
 class DependencyStore(Generic[T]):
     def __init__(self):
         # {type: instance}
-        self.type_deps: dict[int, T] = {}
+        self.type_deps: dict[type[T], T] = {}
         # {name: {type: instance}}
-        self.name_deps: dict[int, dict[str, T]] = {}
+        self.name_deps: dict[type[T], dict[str, T]] = {}
 
     def add_dep_by_type(self, tp: type[T], ins: T):
-        tp_id = id(tp)
-        if tp_id in self.type_deps:
+        if tp in self.type_deps:
             raise DependencyDuplicatedException(f'Dependency {tp} duplicated')
-        self.type_deps.update({tp_id: ins})
+        self.type_deps.update({tp: ins})
 
     def add_dep_by_name(self, tp: type[T],name: str,  ins: T):
-        tp_id = id(tp)
-        name_dict = self.name_deps.get(tp_id)
+        name_dict = self.name_deps.get(tp)
         if name_dict is None:
-            self.name_deps.update({tp_id: {name: ins}})
+            self.name_deps.update({tp: {name: ins}})
         else:
             curr_ins = name_dict.get(name)
             if curr_ins:
                 raise DependencyDuplicatedException(f'Dependency name {name} duplicated')
             else:
                 name_dict.update({name: ins})
-                self.name_deps.update({tp_id: name_dict})
+                self.name_deps.update({tp: name_dict})
 
     def add_dep(self,tp:type[T],name:str|None,ins:T):
         if name is None:
@@ -58,9 +56,9 @@ class DependencyStore(Generic[T]):
 
     def inject_dep(self,tp: type[T],name:str|None):
         if name is None:
-            return self.type_deps.get(id(tp), None)
+            return self.type_deps.get(tp, None)
         else:
-            return self.name_deps.get(id(tp), {}).get(name, None)
+            return self.name_deps.get(tp, {}).get(name, None)
 
     def clear(self):
         self.type_deps.clear()

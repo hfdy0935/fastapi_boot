@@ -61,6 +61,7 @@ def _create_bp_from_record(record: UseMiddlewareRecord):
     return bp
 
 
+
 def use_http_middleware(*dispatches: Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]):
     """add http middlewares for current Controller or Prefix with http endpoint, exclude inner Prefix
 
@@ -118,15 +119,13 @@ def use_ws_middleware(
 
     async def middleware_ws_foo(websocket: WebSocket, call_next: Callable):
         print('before ws send data foo') # as pos a
-        res = await call_next(websocket)
+        await call_next(websocket)
         print('after ws send data foo') # as pos b
-        return res
 
     async def middleware_ws_bar(websocket: WebSocket, call_next: Callable):
         print('before ws send data bar') # as pso c
-        res = await call_next()
+        await call_next()
         print('after ws send data bar') # as pso d
-        return res
 
     async def middleware_bar(request: Request, call_next: Callable[[Request], Any]):
         print('middleware_bar before') # as pos e
