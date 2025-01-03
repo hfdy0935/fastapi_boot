@@ -12,7 +12,7 @@ pip install fastapi-boot
 # Quick Started
 
 to achieve these apis:
-![alt text](README-image/image.png)
+![alt text](./static/image.png)
 
 -   In fastapi-boot
 
@@ -84,12 +84,12 @@ if __name__ == '__main__':
 
 # Default dir
 
-project-name
-├─ resource
-└─ src
-&emsp;&emsp;│ main.py
-&emsp;&emsp;└─ controller
-&emsp;&emsp;&emsp;&emsp;&emsp;order.py
+project-name\
+├─ resource\
+└─ src\
+&emsp;&emsp;│─ main.py\
+&emsp;&emsp;└─ controller\
+&emsp;&emsp;&emsp;&emsp;&emsp;order.py\
 &emsp;&emsp;&emsp;&emsp;&emsp;user.py
 
 # All APIS
@@ -130,7 +130,7 @@ from fastapi_boot.tortoise_util import Sql, Select, Update, Insert, Delete as Sq
 ```
 
 
-Continue reading or click <a href='https://github.com/hfdy0935/fastapi_boot/tree/main/exmaples'>me</a> for more examples.
+Continue reading or click <a href='https://github.com/hfdy0935/fastapi_boot/tree/main/examples'>me</a> for more examples.
 
 # Endpoint Dependency Injection
 
@@ -177,7 +177,7 @@ class _:
             }
 ```
 
-The result will be ![alt text](README-image/image-1.png)
+The result will be ![alt text](./static/image-1.png)
 
 
 
@@ -440,9 +440,9 @@ async def get_by_id1(user_id:str):
 
 @Repository
 class _:
-    tablename = UserEntity.Meta.table
-    @Select('select id,username,age,gender,address from {self.tablename} where id={user_id}')
-    async def get_by_id(self, user_id: str) -> UserInfoVO: ...
+    NORMAL = 'normal'
+    @Select('select id,username,age,gender,address from {user} where id={user_id} and statis={self.NORMAL}').fill(user=UserEntity.Meta.table)
+    async def get_normal_user_by_id(self, user_id: str) -> UserInfoVO: ...
 
     async def get_by_id1(self, user_id:str):
         return await Select('select id,username,age,gender,address from {user} where id={user_id}').fill(user=UserEntity.Meta.table, user_id=user_id).execute(UserInfoVO)
