@@ -1,233 +1,463 @@
 <div align='center'><img src='./static/logo.png'></div>
 <div align='center' style="transform:scale(1.5)"><img src='./static/title.png'/></div>
 
-<h1>FastAPI 项目启动器</h1>
+**FastApiBoot**, a fastapi tool kit which provides many usful functions for **router**、**dependency injection**、**middleware** et al.
 
-# :star:特性
+# Install
 
--   类视图，CBD(class based view)
--   控制反转，IOC(Inversion of Controll)
--   依赖注入，DI(Dependency Injection)
--   ⚡ 自动扫描目录
--   类似于MyBatis的装饰器sql
-
-# :memo:快速开始
-
-## 1. v3
-
-相比 v2 少量修改，大量增强，更快、更简洁、体积更小
-
-点<a href="https://github.com/hfdy0935/fastapi_boot/tree/main/exmaples" target="_blank">这儿</a>查看例子
-
-## 2. v2
-
-```python
-# /service/WelcomeService.py
-
-from fastapi_boot import Service
-
-
-@Service
-class WelcomeService:
-    def welcome(self, num: int):
-        return "World" if num > 0 else "FastApiBoot"
-
+```bash
+pip install fastapi-boot
 ```
 
-```python
-# /controller/WelcomeController.py
+# Quick Started
 
-from fastapi import Query, Request
-from fastapi.responses import RedirectResponse
-from fastapi_boot import Controller, Get, Req, useDep, AutoWired, Prefix
-from service.WelcomeService import WelcomeService
+to achieve these apis:
+![alt text](README-image/image.png)
 
+-   In fastapi-boot
 
-# -------------------------------------------------------------------------------------------------------------------- #
-
-# autowired servcie by type
-welcome_service = AutoWired(WelcomeService)
-
-# -------------------------------------------------------------------------------------------------------------------- #
-
-
-# dependency1
-def get_headers(request: Request):
-    return request.headers
-
-
-# dependency2
-def get_welcome_msg(p: int = Query()):
-    return f"Hello {welcome_service.welcome(p)}"
-
-
-# -------------------------------------------------------------------------------------------------------------------- #
-
-
-# class based view
-@Controller("", tags=["welcome controller"])
-class WelcomeController:
-    @Req("/hello1", summary="hello1")
-    def hello1():
-        return "Hello World!"
-
-    # isolated container
-    @Prefix()
-    class foo:
-        # public dependencies
-        headers = useDep(get_headers)
-        msg = useDep(get_welcome_msg)
-
-        @Get("/hello2", summary="hello2")
-        def hello2(self):
-            return dict(msg=self.msg)
-
-        @Get("/hello3", summary="hello3")
-        def hello3(self):
-            return dict(msg=self.msg, ua=self.headers.get("user-agent", ""))
-
-
-# function based view
-@Controller("/to-docs", tags=["redirect controller"]).get(
-    "", summary="redirect to docs"
-)
-def redirect_to_docs():
-    return RedirectResponse("./docs")
-
-```
-
-```python
-# application.py
-
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi_boot import FastApiBootApplication
+```py
+from fastapi import FastAPI, Query
+from fastapi_boot.core import Controller, Get, provide_app, Post
 import uvicorn
 
+app = FastAPI()
+# provide app to fastapi-boot, so that the following Controller can be included to app automatically.
+provide_app(app)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    FastApiBootApplication.run_app(app)
-    yield
+# declared after privode_app called or in other files in dir where `provide_app` is called.
+
+# fbv, function based view
+@Controller('/foo', tags=['foo']).get('')
+def _():
+    return '/foo'
+
+# cbv, class based view
+@Controller('/bar', tags=['bar'])
+class CBVController:
+    @Get('/a')
+    async def get(self):
+        return '/bar/a'
+
+    @Post('/b')
+    def post(self, q: str = Query()):
+        return dict(query=q,path='/bar/b')
 
 
-app = FastAPI(lifespan=lifespan)
-
-
-@app.get("/app")
-def app_handler():
-    return True
-
-
-if __name__ == "__main__":
-    uvicorn.run("application:app", reload=True)
-
+if __name__ == '__main__':
+    uvicorn.run('main:app', reload=True)
 ```
 
-<div align='center'><img src='./static/image-1.png'/></div>
+-   In fastapi
 
-## 1. v1 <span style="color:red">已弃用</span>
-
-```python
-# /service/WelcomeService.py
-
-from fastapi_boot import Service
-
-
-@Service
-class WelcomeService:
-    def welcome(self, num: int):
-        return "World" if num > 0 else "FastApiBoot"
-
-
-```
-
-```python
-# /controller/WelcomeController.py
-
-from fastapi import Query, Request
-from fastapi.responses import RedirectResponse
-from fastapi_boot import Controller, GetMapping, RequestMapping, useDeps, AutoWired
-from service.WelcomeService import WelcomeService
-
-
-# -------------------------------------------------------------------------------------------------------------------- #
-
-# autowired servcie by type
-welcome_service = AutoWired(WelcomeService)
-
-# -------------------------------------------------------------------------------------------------------------------- #
-
-
-# dependency1
-def get_headers(request: Request):
-    return request.headers
-
-
-# dependency2
-def get_welcome_msg(p: int = Query()):
-    return f"Hello {welcome_service.welcome(p)}"
-
-
-# -------------------------------------------------------------------------------------------------------------------- #
-
-
-# class based view
-@Controller
-@RequestMapping() # can delete when path == ''
-class WelcomeController:
-    @RequestMapping("/hello1", summary="hello1", tags=["welcome controller"])
-    def hello1():
-        return "Hello World!"
-
-    # isolated container
-    @RequestMapping()
-    class foo:
-        # public dependencies
-        headers = useDeps(get_headers)
-        msg = useDeps(get_welcome_msg)
-
-        @GetMapping("/hello2", summary="hello2", tags=["welcome controller"])
-        def hello2(self):
-            return dict(msg=self.msg)
-
-        @GetMapping("/hello3", summary="hello3", tags=["welcome controller"])
-        def hello3(self):
-            return dict(msg=self.msg, ua=self.headers.get("user-agent", ""))
-
-
-# function based view
-@Controller
-@RequestMapping("/to-docs", summary="redirect to docs", tags=["redirect controller"])
-def redirect_to_docs():
-    return RedirectResponse("./docs")
-
-```
-
-```python
-# application.py
-
-import os
-from fastapi import FastAPI
-
-from fastapi_boot import FastApiBootApplication
+```py
+from fastapi import APIRouter, FastAPI, Query
+import uvicorn
 
 app = FastAPI()
 
+router1 = APIRouter(prefix='/foo', tags=['foo'])
 
-@app.get("/app")
-def app_handler():
-    return True
+@router1.get('')
+def _():
+    return '/foo'
+
+app.include_router(router1)
+
+router2 = APIRouter(prefix='/bar', tags=['bar'])
+
+@router2.get('/a')
+async def get():
+    return '/bar/a'
+
+@router2.post('/b')
+def post(q: str = Query()):
+    return dict(query=q,path='/bar/b')
+
+app.include_router(router2)
+
+if __name__ == '__main__':
+    uvicorn.run('main:app', reload=True)
+```
 
 
-@FastApiBootApplication(app)
-def main():
-    os.system("uvicorn application:app --reload")
+
+# Default dir
+
+project-name
+├─ resource
+└─ src
+&emsp;&emsp;│ main.py
+&emsp;&emsp;└─ controller
+&emsp;&emsp;&emsp;&emsp;&emsp;order.py
+&emsp;&emsp;&emsp;&emsp;&emsp;user.py
+
+# All APIS
+
+```py
+from fastapi_boot.core import (
+    Bean,
+    Inject,
+    Injectable,
+    ExceptionHandler,
+    Lifespan,
+    provide_app,
+    use_dep,
+    use_http_middleware,
+    use_ws_middleware,
+    HTTPMiddleware,
+    Lazy,
+    Controller,
+    Delete,
+    Get,
+    Head,
+    Options,
+    Patch,
+    Post,
+    Prefix,
+    Put,
+    Req,
+    Trace,
+    WS,
+    Autowired,
+    Component,
+    Repository,
+    Service,
+)
+
+# if need tortoise
+from fastapi_boot.tortoise_util import Sql, Select, Update, Insert, Delete as SqlDelete
+```
 
 
-if __name__ == "__main__":
-    main()
+Continue reading or click <a href='https://github.com/hfdy0935/fastapi_boot/tree/main/exmaples'>me</a> for more examples.
+
+# Endpoint Dependency Injection
+
+-   use `use_dep` function result as classvar of class decoratoed by Controller or Prefix decorator, and the result will be add as public dependeny of all endpoints under Controller(exclude inner Prefix) or Prefix.
+
+```py
+
+from fastapi import Query, Request
+from fastapi_boot.core import Controller, Get, use_dep, Prefix, Post
+
+
+def get_ua(request: Request):
+    return request.headers.get('user-agent', '')
+
+def get_query_p(p: str = Query()):
+    # some code to process p
+    return p
+
+
+@Controller('/di')
+class _:
+    ua = use_dep(get_ua)
+
+    @Get()
+    def get(self):
+        # ...
+        return self.ua
+
+    @Post()
+    def post(self):
+        # ...
+        return self.ua
+
+    @Prefix('/query')
+    class _:
+        ua = use_dep(get_ua)
+        p = use_dep(get_query_p)
+
+        @Get()
+        def get(self):
+            return {
+                'ua': self.ua,
+                'p': self.p
+            }
+```
+
+The result will be ![alt text](README-image/image-1.png)
+
+
+
+# Bean Dependency Injection
+
+-   Provide and inject `anywhere` after the FastAPI instance provided.
+-   The best practice is to distribute these across different modules.
+-   `Service`、`Repository` and `Component` are same.
+
+```py
+from datetime import datetime, timedelta
+from typing import Annotated
+from fastapi_boot.core import Bean, Service, Controller, Get, Autowired
+
+
+class Item(BaseModel):
+    id: str
+    name: str
+    create_time: datetime
+
+
+@Bean('item1')
+def _():
+    return Item(id='1', name='foo', create_time=datetime.now())
+
+
+Bean('item2')(lambda: Item(id='2', name='bar',
+                           create_time=datetime.now()-timedelta(days=10)))
+
+
+@Bean
+def _(item1: Annotated[Item, 'item1']) -> list[Item]:
+    item2 = Item@Autowired.Qualifier('item2')
+    return [item1, item2]
+
+
+# as global var
+item1 = Autowired(Item, 'item1')
+
+
+@Service
+class DIService:
+    def __init__(self, items: list[Item], item2: Annotated[Item, 'item2']) -> None:
+        # as instance var
+        self.items = items
+        assert items[1] == item2
+
+    def list(self):
+        assert item1 == self.items[0]
+        return self.items
+
+
+@Controller('/bean-di')
+class DIController:
+    # as class var
+    service = Autowired@DIService
+
+    @Get('/list')
+    def list_all(self):
+        return self.service.list()
+```
+
+
+
+# Other decorators
+
+-   Middleware
+
+```py
+from collections.abc import Callable, Coroutine
+from fastapi import Request, WebSocket
+from fastapi_boot.core import Controller, use_http_middleware, Get, use_ws_middleware, WS,  HTTPMiddleware
+
+
+@HTTPMiddleware  # global http middleware
+async def _(request: Request, call_next: Callable[[Request], Coroutine]):
+    print('before mid')
+    resp = await call_next(request)
+    print('after mid')
+    return resp
+
+
+async def mid1(request: Request, call_next: Callable[[Request], Coroutine]):
+    print('before mid1')
+    resp = await call_next(request)
+    print('after mid1')
+    return resp
+
+
+async def mid2(websocket: WebSocket, call_next: Callable[[WebSocket], Coroutine]):
+    print('before mid2')
+    await call_next(websocket)
+    print('after mid2')
+
+
+@Controller('/otehr-decorators')
+class _:
+    # can also be used in class decorated by Prefix
+    _ = use_http_middleware(mid1)
+    __ = use_ws_middleware(mid2)
+
+    @Get()
+    def foo(self):
+        # before mid1
+        # before mid
+        print('endpoint')
+        # before mid
+        # after mid1
+        return True
+
+    @WS()
+    async def bar(self, websocket: WebSocket):
+        try:
+            await websocket.accept()
+            while True:
+                data = await websocket.receive_json()
+                # before mid2
+                await websocket.send_json(data)
+                # after mid2
+        except:
+            pass
+```
+
+-   ExceptionHandler
+
+```py
+from dataclasses import asdict, dataclass
+import time
+from fastapi import HTTPException, Query, Request
+from fastapi_boot.core import Controller, Get, ExceptionHandler, use_dep
+
+@dataclass
+class GuessException(Exception):
+    code: int = 500
+    msg: str = 'server error'
+
+@ExceptionHandler(GuessException)
+async def handle_exp_1(request: Request, exp: GuessException):
+    print('guess exception 501')
+    return {
+        **asdict(exp),
+        'time': time.ctime()
+    }
+
+@ExceptionHandler(501)
+async def handle_exp_2(request: Request, exp: HTTPException):
+    print('guess exception 502')
+    return {
+        'status': exp.status_code,
+        'msg': exp.detail,
+        'time': time.ctime()
+    }
+
+def guess_dep(p: int = Query()):
+    if p > 20:
+        raise HTTPException(501, 'too large')
+
+@Controller('/exp-handler-demo')
+class ExpHandlerDemo:
+    _ = use_dep(guess_dep)
+
+    @Get()
+    def f(self, p: int = Query(description='guess a number')):
+        if p < 10:
+            raise GuessException(msg='too small')
+        return dict(
+            code=200,
+            msg='success',
+            data=p
+        )
+```
+
+-   Lifespan: `app=FastAPI(lifespan=lifespan)`, equals it's param lifespan
+-   Lazy
+
+```py
+from dataclasses import dataclass
+from functools import lru_cache
+from typing import Any
+from fastapi import FastAPI
+from fastapi_boot.core import Controller,  Get, Lifespan, Lazy, Inject, Bean
+
+@dataclass
+class DBData:
+    conn: Any = None
+    db_info: str = ''
+
+class DB:
+    async def connect(self, app: FastAPI): ...
+    async def disconnect(self): ...
+
+    @property
+    def some_data(self):
+        return DBData('db connected')
+
+
+@Lifespan
+async def lifespan(app: FastAPI):
+
+    db = DB()
+    await db.connect(app)
+    # Bean created after scanning and before app starting
+
+    @Bean
+    def f() -> DBData:
+        return db.some_data
+    yield
+    await db.disconnect()
+
+
+@Controller('/lifespan')
+class LefespaDemoController:
+    # late inject, equals peoperty and lru_cache
+    db_data = Lazy(lambda: Inject(DBData))
+
+    @property
+    @lru_cache(None)
+    def db_data1(self):
+        return Inject(DBData)
+
+    @Get('query-db', response_model=dict)
+    def f(self):
+        result = self.db_data.db_info+' query result'
+        assert self.db_data == self.db_data1
+        return dict(
+            code=200,
+            msg='success',
+            data=result
+        )
+```
+
+
+
+# Tortoise util
+
+```py
+
+M = TypeVar('M', bounds=BaseModel)
+# when use select as decorator
+# | return annotation |  return value  |
+# |       :--:        |      :--:      |
+# |         M         |     M|None     |
+# |      list[M]      |     list[M]    |
+# |  None|list[dict]  |    list[dict]  |
+
+# ause execute(TP)
+# |        execute_param        |  return value  |
+# |            :--:             |      :--:      |
+# |           type[M]           |     M|None     |
+# |      type[Sequence[M]]      |     list[M]    |
+# | None | type[Sequence[dict]] |    list[dict]  |
+
+# The fill method is used to populate parts of a PreparedStatement that cannot be replaced by placeholders.
+@Select('select id,username,age,gender,address from {user} where id={dto.user_id}').fill(user=UserEntity.Meta.table)
+async def get_by_id(dto: UserDTO) -> UserInfoVO: ...
+
+async def get_by_id1(user_id:str):
+    # Give execute method a type you want to receive, default
+    return await Select('select id,username,age,gender,address from {user} where id={user_id}').fill(user=UserEntity.Meta.table, user_id=user_id).execute(UserInfoVO)
+
+@Repository
+class _:
+    tablename = UserEntity.Meta.table
+    @Select('select id,username,age,gender,address from {self.tablename} where id={user_id}')
+    async def get_by_id(self, user_id: str) -> UserInfoVO: ...
+
+    async def get_by_id1(self, user_id:str):
+        return await Select('select id,username,age,gender,address from {user} where id={user_id}').fill(user=UserEntity.Meta.table, user_id=user_id).execute(UserInfoVO)
 
 ```
 
-<div align='center'><img src='./static/image.png'/></div>
+Others can also be used as deocrator, as well `execute`:
+
+|              name              | decorated function return type | execute param |       return value       |
+| :----------------------------: | :----------------------------: | :-----------: | :----------------------: |
+|             `Sql`              |      `None \| list[dict]`      |   no param    | `tuple[int, list[dict]]` |
+| `Insert` = `Update` = `Delete` |         `None \| int`          |   no param    |          `int`           |
+
+-   `Select`format return `list[dict]` to custom style: `BaseModel`、`list[BaseModel]`、`None` or `list[dict]`
+-   `Sql` return raw result of `execute_query()`, **tupe[affected lines, result dict]**
+-   `Insert`、`Update`、`Delete` return **affected lines**
+
+
