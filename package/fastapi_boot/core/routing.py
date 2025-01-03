@@ -154,9 +154,7 @@ def resolve_endpoint(
     api_route.record.replace_endpoint(new_endpoint).add_prefix(prefix).mount_to(anchor)
 
 
-def resolve_class_based_view(
-   anchor: APIRouter, route_record: PrefixRouteRecord[T], prefix: str, app_record: AppRecord
-):
+def resolve_class_based_view(anchor: APIRouter, route_record: PrefixRouteRecord[T], prefix: str, app_record: AppRecord):
     """
     Args:
         anchor (APIRouter): mount anchor
@@ -300,12 +298,12 @@ class Patch(SM):
 
 class Trace(SM):
     def __call__(self, endpoint: T) -> T:
-        return Req(**self.dict, methods=['OPTIONS'])(endpoint)
+        return Req(**self.dict, methods=['TRACE'])(endpoint)
 
 
 class Options(SM):
     def __call__(self, endpoint: T) -> T:
-        return Req(**self.dict, methods=['TRACE'])(endpoint)
+        return Req(**self.dict, methods=['OPTIONS'])(endpoint)
 
 
 class WebSocket(WebSocketRouteItemWithoutEndpoint):
