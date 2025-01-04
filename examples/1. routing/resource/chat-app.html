@@ -32,7 +32,7 @@
     <script>
         const input = document.querySelector('input');
         const sendBtn = document.querySelector('.send');
-        const broadcaseBtn = document.querySelector('.broadcast');
+        const broadcastBtn = document.querySelector('.broadcast');
         const websocket = new WebSocket('ws://localhost:8000/chat');
         websocket.onopen = () => {
             console.log('websocket connected...');
@@ -62,7 +62,7 @@
             );
             input.value = '';
         });
-        broadcaseBtn.addEventListener('click', async () => {
+        broadcastBtn.addEventListener('click', async () => {
             if (!input.value.trim()) return;
             await fetch('http://localhost:8000/chat/broadcast', {
                 method: 'POST',
