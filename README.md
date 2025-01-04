@@ -1,7 +1,7 @@
 <div align='center'><img src='./static/logo.png'></div>
 <div align='center' style="transform:scale(1.5)"><img src='./static/title.png'/></div>
 
-**FastApiBoot**, a fastapi tool kit which provides many usful functions for **router**、**dependency injection**、**middleware** et al.
+**FastApiBoot**, a fastapi tool kit which provides many useful functions for **router**、**dependency injection**、**middleware** et al.
 
 # Install
 
