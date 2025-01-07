@@ -204,7 +204,7 @@ class Controller(APIRouter, Generic[T]):
         include_in_schema: bool = True,
         generate_unique_id_function: Callable[[APIRoute], str] = Default(generate_unique_id),
         auto_include: bool = True,
-        dep_name: str|None = None # default: decorated class's name, and '' will be ignored
+        dep_name: str|None = None # default: the decorated class's name, and '' will be ignored
     ):
         self.prefix = trans_path(prefix)
         self.auto_include=auto_include
