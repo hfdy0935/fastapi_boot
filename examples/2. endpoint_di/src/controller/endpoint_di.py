@@ -13,10 +13,7 @@ class DIController:
 
     @Get('public-data')
     def get_public_data(self):
-        return {
-            'data': PUBLIC_DATA,
-            'user-agent': self.ua
-        }
+        return {'data': PUBLIC_DATA, 'user-agent': self.ua}
 
     @Prefix('/private-data')
     class IdentityPrefix:
@@ -25,10 +22,7 @@ class DIController:
 
         @Get()
         def get_userinfo(self):
-            return dict(
-                data=PRIVATE_DATA.get(self.identity, ''),
-                us=self.ua
-            )
+            return dict(data=PRIVATE_DATA.get(self.identity, ''), us=self.ua)
 
         @Post()
         def update_private_data(self, data: str = Query()):
