@@ -61,7 +61,6 @@ def _create_bp_from_record(record: UseMiddlewareRecord):
     return bp
 
 
-
 def use_http_middleware(*dispatches: Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]):
     """add http middlewares for current Controller or Prefix with http endpoint, exclude inner Prefix
 
@@ -104,8 +103,8 @@ def use_http_middleware(*dispatches: Callable[[Request, Callable[[Request], Coro
 
 
 def use_ws_middleware(
-    *dispatches: Callable[[WebSocket, Callable[[WebSocket], Coroutine[Any, Any, None]]], Any],
-    only_message: bool = False
+        *dispatches: Callable[[WebSocket, Callable[[WebSocket], Coroutine[Any, Any, None]]], Any],
+        only_message: bool = False
 ):
     """add websocket middlewares for current Controller or Prefix with websocket endpoint, exclude inner Prefix
     - if `only_message` and message's type != 'websocket.senf': will ignore dispatches
@@ -188,7 +187,8 @@ def HTTPMiddleware(dispatch: Callable[[Request, Callable[[Request], Coroutine[An
     return dispatch
 
 
-def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20, inject_retry_step: float = 0.05):
+def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 6,
+                inject_retry_step: float = 0.05) -> FastAPI:
     """enable scan project to collect dependencies which can't been collected automatically
 
     Args:
@@ -213,7 +213,7 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
     proj_root_dir = os.getcwd()
     app_parts = Path(app_root_dir).parts
     proj_parts = Path(proj_root_dir).parts
-    prefix_parts = app_parts[len(proj_parts) :]
+    prefix_parts = app_parts[len(proj_parts):]
     # scan
     dot_paths = []
     for root, _, files in os.walk(app_root_dir):

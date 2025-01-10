@@ -28,8 +28,8 @@ def fill_params_in_sql(sql: str, kwds: dict, placeholder: str) -> tuple[str, lis
     def replace_match(match):
         variable_name = match.group(1)
         try:
-            pre_param=get_prestatement_params([variable_name], kwds)[0]
-            return f"'{pre_param}'" if isinstance(pre_param,str) else str(pre_param)
+            pre_param = get_prestatement_params([variable_name], kwds)[0]
+            return f"'{pre_param}'" if isinstance(pre_param, str) else str(pre_param)
         except:
             variables.append(variable_name)
             return placeholder
@@ -92,7 +92,7 @@ def parse_execute_res(target: dict):
 
 
 M = TypeVar('M', bound=BaseModel)
-P=ParamSpec('P')
+P = ParamSpec('P')
 # placeholder of fill params before the connection is available
 FILL_PLACEHOLDER = ' fastapi_boot_tortoise_util_fill_placeholder '
 
@@ -158,14 +158,14 @@ class Sql:
         return await self(func)()
 
     def __call__(
-        self, func: Callable[P, Coroutine[Any, Any, None | tuple[int, list[dict]]]]
+            self, func: Callable[P, Coroutine[Any, Any, None | tuple[int, list[dict]]]]
     ) -> Callable[P, Coroutine[Any, Any, tuple[int, list[dict]]]]:
         is_sqlite = get_is_sqlite(self.connection_name)
         placeholder = '?' if is_sqlite else '%s'
         self.sql = self.sql.replace(FILL_PLACEHOLDER, placeholder)
 
         @wraps(func)
-        async def wrapper(*args:P.args, **kwds:P.kwargs):
+        async def wrapper(*args: P.args, **kwds: P.kwargs):
             func_params_dict = get_func_params_dict(func, *args, **kwds)
             sql_params = get_prestatement_params(self.sql_pres_param_names, func_params_dict)
             # execute
@@ -225,14 +225,20 @@ class Select(Sql):
     """
 
     @overload
-    async def execute(self, expect: type[M]) -> M|None: ...
+    async def execute(self, expect: type[M]) -> M | None:
+        ...
+
     @overload
-    async def execute(self, expect: type[Sequence[M]]) -> list[M]: ...
+    async def execute(self, expect: type[Sequence[M]]) -> list[M]:
+        ...
+
     @overload
-    async def execute(self, expect: None | type[Sequence[dict]] = None) -> list[dict]: ...
+    async def execute(self, expect: None | type[Sequence[dict]] = None) -> list[dict]:
+        ...
+
     @override
     async def execute(
-        self, expect: type[M] | type[Sequence[M]] | None | type[Sequence[dict]] = None
+            self, expect: type[M] | type[Sequence[M]] | None | type[Sequence[dict]] = None
     ) -> M | None | list[M] | list[dict]:
         async def func(): ...
 
@@ -240,25 +246,31 @@ class Select(Sql):
         return await self(func)()
 
     @overload
-    def __call__(self, func: Callable[P, Coroutine[Any, Any, M]]) -> Callable[P, Coroutine[Any, Any, M | None]]: ...
+    def __call__(self, func: Callable[P, Coroutine[Any, Any, M]]) -> Callable[P, Coroutine[Any, Any, M | None]]:
+        ...
+
     @overload
     def __call__(
-        self, func: Callable[P, Coroutine[Any, Any, list[M]]]
-    ) -> Callable[P, Coroutine[Any, Any, list[M]]]: ...
+            self, func: Callable[P, Coroutine[Any, Any, list[M]]]
+    ) -> Callable[P, Coroutine[Any, Any, list[M]]]:
+        ...
+
     @overload
     def __call__(
-        self, func: Callable[P, Coroutine[Any, Any, None | list[dict]]]
-    ) -> Callable[P, Coroutine[Any, Any, list[dict]]]: ...
+            self, func: Callable[P, Coroutine[Any, Any, None | list[dict]]]
+    ) -> Callable[P, Coroutine[Any, Any, list[dict]]]:
+        ...
+
     @override
     def __call__(
-        self,
-        func: Callable[P, Coroutine[Any, Any, M | list[M] | list[dict] | None]] | None,
+            self,
+            func: Callable[P, Coroutine[Any, Any, M | list[M] | list[dict] | None]] | None,
     ) -> Callable[P, Coroutine[Any, Any, M | list[M] | list[dict] | None]]:
         anno = func.__annotations__.get('return')
         super_class = super()
 
         @wraps(func)  # type: ignore
-        async def wrapper(*args:P.args, **kwds:P.kwargs):
+        async def wrapper(*args: P.args, **kwds: P.kwargs):
             lines, resp = await super_class.__call__(func)(*args, **kwds)  # type: ignore
             if anno is None:
                 return resp
@@ -321,7 +333,7 @@ class Insert(Sql):
         super_class = super()
 
         @wraps(func)
-        async def wrapper(*args:P.args, **kwds:P.kwargs) -> int:
+        async def wrapper(*args: P.args, **kwds: P.kwargs) -> int:
             return (await super_class.__call__(func)(*args, **kwds))[0]  # type: ignore
 
         return wrapper

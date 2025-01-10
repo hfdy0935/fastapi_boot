@@ -1,13 +1,14 @@
 import time
 from collections.abc import Callable
-from inspect import Parameter, _empty, signature,isclass
-from typing import Annotated, Generic, TypeVar, get_args, get_origin, no_type_check, overload
+from inspect import Parameter, _empty, signature, isclass
+from typing import Annotated, Generic, TypeVar, get_args, get_origin, no_type_check, overload, Self
 
-from fastapi_boot.core.const import  app_store, dep_store
+from fastapi_boot.core.const import app_store, dep_store
 from fastapi_boot.core.model import AppRecord, DependencyNotFoundException, InjectFailException
 from fastapi_boot.core.util import get_call_filename
 
 T = TypeVar('T')
+
 
 # ------------------------------------------------------- public ------------------------------------------------------ #
 
@@ -25,11 +26,11 @@ def _inject(app_record: AppRecord, tp: type[T], name: str | None) -> T:
     """
     start = time.time()
     while True:
-        if res := dep_store.inject_dep( tp,name):
+        if res := dep_store.inject_dep(tp, name):
             return res
         time.sleep(app_record.inject_retry_step)
         if time.time() - start > app_record.inject_timeout:
-            name_info=f"with name '{name}'" if name is not None else ''
+            name_info = f"with name '{name}'" if name is not None else ''
             raise DependencyNotFoundException(f"Dependency '{tp}' {name_info} not found")
 
 
@@ -58,7 +59,7 @@ def inject_params_deps(app_record: AppRecord, params: list[Parameter]):
                 params_dict.update({param.name: _inject(app_record, tp, name)})
             else:
                 # 2.2.2 other
-                params_dict.update({param.name: _inject(app_record, param.annotation,None)})
+                params_dict.update({param.name: _inject(app_record, param.annotation, None)})
     return params_dict
 
 
@@ -79,13 +80,17 @@ def collect_bean(app_record: AppRecord, func: Callable, name: str | None = None)
     return_annotations = signature(func).return_annotation
     instance = func(**inject_params_deps(app_record, params))
     tp = return_annotations if return_annotations != _empty else type(instance)
-    dep_store.add_dep(tp, name,instance)
+    dep_store.add_dep(tp, name, instance)
 
 
 @overload
 def Bean(value: str): ...
+
+
 @overload
 def Bean(value: Callable[..., T]): ...
+
+
 @no_type_check
 def Bean(value: str | Callable[..., T]) -> Callable[..., T]:
     """A decorator, will collect the return value of the func decorated by Bean
@@ -145,11 +150,13 @@ def collect_dep(app_record: AppRecord, cls: type, name: str | None = None):
     if hasattr(cls.__init__, '__globals__'):
         cls.__init__.__globals__[cls.__name__] = cls  # avoid error when getting cls in __init__ method
     instance = inject_init_deps_and_get_instance(app_record, cls)
-    dep_store.add_dep(cls,name, instance)
+    dep_store.add_dep(cls, name, instance)
 
 
 @overload
 def Injectable(value: str): ...
+
+
 @overload
 def Injectable(value: type[T]): ...
 
@@ -247,7 +254,7 @@ class Inject(Generic[T], metaclass=AtUsable):
         return res
 
     @classmethod
-    def Qualifier(cls, name: str) -> type['Inject']:
+    def Qualifier(cls, name: str) -> type[Self]:
         """Inject.Qualifier(name)"""
         filename = get_call_filename()
 
@@ -255,4 +262,3 @@ class Inject(Generic[T], metaclass=AtUsable):
             latest_named_deps_record: dict[str, str] = {filename: name}
 
         return Cls
-

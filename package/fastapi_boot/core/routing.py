@@ -64,20 +64,20 @@ def get_use_result(cls: type[T]):
             use_dep_dict.update({k: (cls_anno.get(k), v)})
         # collect use_middleware's value
         elif (
-            isinstance(v, BlankPlaceholder)
-            and (attr := getattr(v, USE_MIDDLEWARE_FIELD_PLACEHOLDER))
-            and isinstance(attr, UseMiddlewareRecord)
+                isinstance(v, BlankPlaceholder)
+                and (attr := getattr(v, USE_MIDDLEWARE_FIELD_PLACEHOLDER))
+                and isinstance(attr, UseMiddlewareRecord)
         ):
             use_middleware_records.append(attr)
     return use_dep_dict, use_middleware_records
 
 
 def trans_endpoint(
-    instance: Any,
-    endpoint: Callable,
-    use_dep_dict: dict,
-    use_middleware_records: list[UseMiddlewareRecord],
-    is_websocket: bool,
+        instance: Any,
+        endpoint: Callable,
+        use_dep_dict: dict,
+        use_middleware_records: list[UseMiddlewareRecord],
+        is_websocket: bool,
 ):
     """trans endpoint
     1. change `self` param's default ===> Depends(lambda: instance). set kind ===> 'KEYWORD_ONLY';
@@ -126,12 +126,12 @@ def trans_endpoint(
 
 
 def resolve_endpoint(
-    anchor: APIRouter,
-    api_route: EndpointRouteRecord,
-    instance: Any,
-    use_deps_dict: dict,
-    prefix: str,
-    use_middleware_records: list[UseMiddlewareRecord],
+        anchor: APIRouter,
+        api_route: EndpointRouteRecord,
+        instance: Any,
+        use_deps_dict: dict,
+        prefix: str,
+        use_middleware_records: list[UseMiddlewareRecord],
 ):
     """
     1. trans_endpoint
@@ -155,7 +155,7 @@ def resolve_endpoint(
 
 
 def resolve_class_based_view(
-   anchor: APIRouter, route_record: PrefixRouteRecord[T], prefix: str, app_record: AppRecord
+        anchor: APIRouter, route_record: PrefixRouteRecord[T], prefix: str, app_record: AppRecord
 ):
     """
     Args:
@@ -181,34 +181,34 @@ def resolve_class_based_view(
     return instance
 
 
-
 class Controller(APIRouter, Generic[T]):
     def __init__(
-        self,
-        prefix: str = "",
-        *,
-        tags: list[str | Enum] | None = None,
-        dependencies: Sequence[params.Depends] | None = None,
-        default_response_class: type[Response] = Default(JSONResponse),
-        responses: dict[int | str, dict[str, Any]] | None = None,
-        callbacks: list[BaseRoute] | None = None,
-        routes: list[BaseRoute] | None = None,
-        redirect_slashes: bool = True,
-        default: ASGIApp | None = None,
-        dependency_overrides_provider: Any | None = None,
-        route_class: type[APIRoute] = APIRoute,
-        on_startup: Sequence[Callable[[], Any]] | None = None,
-        on_shutdown: Sequence[Callable[[], Any]] | None = None,
-        lifespan: Lifespan[Any] | None = None,
-        deprecated: bool | None = None,
-        include_in_schema: bool = True,
-        generate_unique_id_function: Callable[[APIRoute], str] = Default(generate_unique_id),
-        auto_include: bool = True,
-        dep_name: str|None = None # default: the decorated class's name, and '' will be ignored
+            self,
+            prefix: str = "",
+            *,
+            tags: list[str | Enum] | None = None,
+            dependencies: Sequence[params.Depends] | None = None,
+            default_response_class: type[Response] = Default(JSONResponse),
+            responses: dict[int | str, dict[str, Any]] | None = None,
+            callbacks: list[BaseRoute] | None = None,
+            routes: list[BaseRoute] | None = None,
+            redirect_slashes: bool = True,
+            default: ASGIApp | None = None,
+            dependency_overrides_provider: Any | None = None,
+            route_class: type[APIRoute] = APIRoute,
+            on_startup: Sequence[Callable[[], Any]] | None = None,
+            on_shutdown: Sequence[Callable[[], Any]] | None = None,
+            lifespan: Lifespan[Any] | None = None,
+            deprecated: bool | None = None,
+            include_in_schema: bool = True,
+            generate_unique_id_function: Callable[[APIRoute], str] = Default(generate_unique_id),
+            auto_include: bool = True,
+            # will be collected by type `APIRouetr` with name decorated class's name if dep_name is None else by type `APIRouetr` with name
+            dep_name: str | None = None
     ):
         self.prefix = trans_path(prefix)
-        self.auto_include=auto_include
-        self.dep_name=dep_name
+        self.auto_include = auto_include
+        self.dep_name = dep_name
         super().__init__(
             prefix=self.prefix,
             tags=tags,
@@ -234,7 +234,7 @@ class Controller(APIRouter, Generic[T]):
         resolve_class_based_view(self, PrefixRouteRecord(cls), '', app_record)
         self.auto_include and app_record.app.include_router(self)
         # collect controller as name dep with type 'APIRouter'
-        dep_store.add_dep(APIRouter,self.dep_name or cls.__name__,self)
+        dep_store.add_dep(APIRouter, cls.__name__ if self.dep_name is None else self.dep_name, self)
         return cls
 
     def __getattribute__(self, k: str):
@@ -250,8 +250,8 @@ class Controller(APIRouter, Generic[T]):
                         BaseHttpRouteItem(endpoint, *args, **kwds).mount_to(self)
                     else:
                         BaseHttpRouteItem(endpoint, methods=[k], *args, **kwds).mount_to(self)
-                    self.auto_include and  app_store.get(get_call_filename()).app.include_router(self)
-                    dep_store.add_dep(APIRouter,self.dep_name or endpoint.__name__,self)
+                    self.auto_include and app_store.get(get_call_filename()).app.include_router(self)
+                    dep_store.add_dep(APIRouter, self.dep_name or endpoint.__name__, self)
                     return endpoint
 
                 return wrapper
