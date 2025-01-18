@@ -4,7 +4,7 @@ from inspect import signature
 import inspect
 import json
 import re
-from typing import Any, ParamSpec, TypeVar, cast, get_args, get_origin, overload, override
+from typing import Any, ParamSpec, TypeVar, cast, get_args, get_origin, overload
 from warnings import warn
 from pydantic import BaseModel
 from tortoise import Tortoise
@@ -236,7 +236,6 @@ class Select(Sql):
     async def execute(self, expect: None | type[Sequence[dict]] = None) -> list[dict]:
         ...
 
-    @override
     async def execute(
             self, expect: type[M] | type[Sequence[M]] | None | type[Sequence[dict]] = None
     ) -> M | None | list[M] | list[dict]:
@@ -261,7 +260,6 @@ class Select(Sql):
     ) -> Callable[P, Coroutine[Any, Any, list[dict]]]:
         ...
 
-    @override
     def __call__(
             self,
             func: Callable[P, Coroutine[Any, Any, M | list[M] | list[dict] | None]] | None,
@@ -312,7 +310,6 @@ class Insert(Sql):
 
     """
 
-    @override
     async def execute(self):
         """execute sql without decorated function
 
@@ -328,7 +325,6 @@ class Insert(Sql):
 
         return await self(func)()
 
-    @override
     def __call__(self, func: Callable[P, Coroutine[Any, Any, None | int]]) -> Callable[P, Coroutine[Any, Any, int]]:
         super_class = super()
 

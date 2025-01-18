@@ -15,7 +15,6 @@ from warnings import warn
 from pydantic import BaseModel
 
 from fastapi import Depends, FastAPI, Request, Response, WebSocket
-from starlette.routing import _DefaultLifespan
 
 from fastapi.responses import JSONResponse
 from fastapi_boot.core.const import (

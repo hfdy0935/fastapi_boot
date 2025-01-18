@@ -2,9 +2,9 @@ from collections.abc import Callable, Sequence
 from enum import Enum
 from functools import reduce, wraps
 from inspect import Parameter, iscoroutinefunction, signature
-from typing import Any, Generic, TypeVar, TypedDict
+from typing import Any, Generic, TypeVar
 
-from fastapi import APIRouter, FastAPI, Response, params, WebSocket as FastAPIWebSocket
+from fastapi import APIRouter, Response, params, WebSocket as FastAPIWebSocket
 from fastapi.datastructures import Default
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
@@ -229,10 +229,11 @@ class Controller(APIRouter, Generic[T]):
             generate_unique_id_function=generate_unique_id_function,
         )
 
-    def __call__(self, cls: type[T]) -> T:
+    def __call__(self, cls: type[T]) -> type[T]:
         app_record = app_store.get(get_call_filename())
         resolve_class_based_view(self, PrefixRouteRecord(cls), '', app_record)
-        self.auto_include and app_record.app.include_router(self)
+        if self.auto_include:
+            app_record.app.include_router(self)
         # collect controller as name dep with type 'APIRouter'
         dep_store.add_dep(APIRouter, cls.__name__ if self.dep_name is None else self.dep_name, self)
         return cls
@@ -250,7 +251,8 @@ class Controller(APIRouter, Generic[T]):
                         BaseHttpRouteItem(endpoint, *args, **kwds).mount_to(self)
                     else:
                         BaseHttpRouteItem(endpoint, methods=[k], *args, **kwds).mount_to(self)
-                    self.auto_include and app_store.get(get_call_filename()).app.include_router(self)
+                    if self.auto_include:
+                        app_store.get(get_call_filename()).app.include_router(self)
                     dep_store.add_dep(APIRouter, self.dep_name or endpoint.__name__, self)
                     return endpoint
 
