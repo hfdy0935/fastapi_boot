@@ -9,12 +9,13 @@ from collections.abc import Callable, Coroutine
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 import sys
-from typing import Any, TypeVar, cast
-from inspect import iscoroutinefunction
-from warnings import warn
+from typing import Any, Protocol, TypeVar, cast, ParamSpec
+from inspect import isclass, iscoroutinefunction
 from pydantic import BaseModel
 
 from fastapi import Depends, FastAPI, Request, Response, WebSocket
+from starlette.middleware import _MiddlewareFactory
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from fastapi.responses import JSONResponse
 from fastapi_boot.core.const import (
@@ -158,15 +159,25 @@ def use_ws_middleware(
     ```
 
     """
-    record = UseMiddlewareRecord(ws_dispatches=list(dispatches), ws_only_message=only_message)
+    record = UseMiddlewareRecord(ws_dispatches=list(
+        dispatches), ws_only_message=only_message)
     return _create_bp_from_record(record)
 
 
-def HTTPMiddleware(dispatch: Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]):
-    """Add global http middleware
+DispatchFunc = Callable[[
+    Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]
+P = ParamSpec('P')
+
+
+class DispatchCls(Protocol):
+    async def dispatch(self, request: Request, call_next: Callable): ...
+
+
+def HTTPMiddleware(dispatch: DispatchFunc | type[DispatchCls]):
+    """Add global base http middleware.
 
     Args:
-        dispatch (Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any]): middleware handler
+        dispatch: Callable[[Request, Callable[[Request], Coroutine[Any, Any, Response]]], Any] or class with async `dispatch` method.
     Example:
     ```python
     from collections.abc import Callable
@@ -180,13 +191,29 @@ def HTTPMiddleware(dispatch: Callable[[Request, Callable[[Request], Coroutine[An
         print("after")
         return res
 
+        @HTTPMiddleware
+        class FooMiddleware:
+            async def foo(self, a: int):
+                return a
+
+            async def dispatch(self, request: Request, call_next: Callable):
+                print('before')
+                res = await call_next(request)
+                print('after')
+                print(await self.foo(1))
+                return res
     ```
     """
-    app_store.get(get_call_filename()).app.middleware('http')(dispatch)
+    app = app_store.get(get_call_filename()).app
+    if isclass(dispatch):
+        Cls = type('Cls', (dispatch, BaseHTTPMiddleware), {})
+        app.add_middleware(cast(_MiddlewareFactory, Cls))
+    else:
+        app.add_middleware(BaseHTTPMiddleware, cast(Callable, dispatch))
     return dispatch
 
 
-def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 6,
+def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
                 inject_retry_step: float = 0.05) -> FastAPI:
     """enable scan project to collect dependencies which can't been collected automatically
 
@@ -222,7 +249,9 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 6,
                 if fullpath == provide_filepath:
                     continue
                 dot_path = '.'.join(
-                    prefix_parts + Path(fullpath.replace('.py', '').replace(app_root_dir, '')).parts[1:]
+                    prefix_parts +
+                    Path(fullpath.replace('.py', '').replace(
+                        app_root_dir, '')).parts[1:]
                 )
                 dot_paths.append(dot_path)
                 # clear module cache if exists
@@ -241,6 +270,11 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 6,
     return app
 
 
+def inject_app():
+    """inject app instance"""
+    return app_store.get(get_call_filename()).app
+
+
 def Lifespan(func: Callable[[FastAPI], AsyncGenerator[None, None]]):
     """lifespan, can also app = FastAPI(lifespan=xxx)
 
@@ -252,7 +286,8 @@ def Lifespan(func: Callable[[FastAPI], AsyncGenerator[None, None]]):
         # close db
     ```
     """
-    app_store.get(get_call_filename()).app.router.lifespan_context = asynccontextmanager(func)
+    app_store.get(get_call_filename()
+                  ).app.router.lifespan_context = asynccontextmanager(func)
     return func
 
 
@@ -303,7 +338,8 @@ def ExceptionHandler(exp: int | type[E]):
             else:
                 return Response(resp)
 
-        app_store.get(get_call_filename()).app.add_exception_handler(exp, wrapper)
+        app_store.get(get_call_filename()
+                      ).app.add_exception_handler(exp, wrapper)
         return handler
 
     return decorator

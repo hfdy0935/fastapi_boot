@@ -102,6 +102,7 @@ from fastapi_boot.core import (
     ExceptionHandler,
     Lifespan,
     provide_app,
+    inject_app,
     use_dep,
     use_http_middleware,
     use_ws_middleware,
@@ -197,7 +198,7 @@ class Item(BaseModel):
     name: str
     create_time: datetime
 
-
+# collect by name
 @Bean('item1')
 def _():
     return Item(id='1', name='foo', create_time=datetime.now())
@@ -208,17 +209,19 @@ Bean('item2')(lambda: Item(id='2', name='bar',
 
 
 @Bean
-def _(item1: Annotated[Item, 'item1']) -> list[Item]:
-    item2 = Item@Autowired.Qualifier('item2')
+def _(item1: Annotated[Item, 'item1']) -> list[Item]: # inject by name
+    item2 = Item@Autowired.Qualifier('item2') # inject by name
+    assert item2 == Autowired(Item, 'item2') == Autowired.Qualifier('item2')@Item
     return [item1, item2]
 
 
-# as global var
+# as global var, inject by name
 item1 = Autowired(Item, 'item1')
 
 
 @Service
 class DIService:
+    # items: inject by type
     def __init__(self, items: list[Item], item2: Annotated[Item, 'item2']) -> None:
         # as instance var
         self.items = items
@@ -231,8 +234,9 @@ class DIService:
 
 @Controller('/bean-di')
 class DIController:
-    # as class var
+    # as class var, inject by type
     service = Autowired@DIService
+    service1 = Autowired(DIService)
 
     @Get('/list')
     def list_all(self):
@@ -303,7 +307,14 @@ async def _(request: Request, call_next: Callable[[Request], Coroutine]):
     resp = await call_next(request)
     print('after mid')
     return resp
-
+    
+# @HTTPMiddleware
+# class MidMiddleware:
+#     async def dispatch(self, request: Request, call_next: Callable):
+#         print('before mid')
+#         res = await call_next(request)
+#         print('after mid')
+#         return res
 
 async def mid1(request: Request, call_next: Callable[[Request], Coroutine]):
     print('before mid1')
@@ -397,6 +408,7 @@ class ExpHandlerDemo:
 
 -   Lifespan: `app=FastAPI(lifespan=lifespan)`, equals it's param lifespan
 -   Lazy
+-   inject_app
 
 ```py
 from dataclasses import dataclass
@@ -452,6 +464,8 @@ class LefespaDemoController:
             msg='success',
             data=result
         )
+
+app = inject_app() # FastAPI instance when scanning the current file.
 ```
 
 

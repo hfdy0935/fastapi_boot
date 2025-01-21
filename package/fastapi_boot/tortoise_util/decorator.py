@@ -158,7 +158,7 @@ class Sql:
         return await self(func)()
 
     def __call__(
-            self, func: Callable[P, Coroutine[Any, Any, None | tuple[int, list[dict]]]]
+        self, func: Callable[P, Coroutine[Any, Any, None | tuple[int, list[dict]]]]
     ) -> Callable[P, Coroutine[Any, Any, tuple[int, list[dict]]]]:
         is_sqlite = get_is_sqlite(self.connection_name)
         placeholder = '?' if is_sqlite else '%s'
@@ -225,19 +225,16 @@ class Select(Sql):
     """
 
     @overload
-    async def execute(self, expect: type[M]) -> M | None:
-        ...
+    async def execute(self, expect: type[M]) -> M | None: ...
 
     @overload
-    async def execute(self, expect: type[Sequence[M]]) -> list[M]:
-        ...
+    async def execute(self, expect: type[Sequence[M]]) -> list[M]: ...
 
     @overload
-    async def execute(self, expect: None | type[Sequence[dict]] = None) -> list[dict]:
-        ...
+    async def execute(self, expect: None | type[Sequence[dict]] = None) -> list[dict]: ...
 
     async def execute(
-            self, expect: type[M] | type[Sequence[M]] | None | type[Sequence[dict]] = None
+        self, expect: type[M] | type[Sequence[M]] | None | type[Sequence[dict]] = None
     ) -> M | None | list[M] | list[dict]:
         async def func(): ...
 
@@ -245,24 +242,21 @@ class Select(Sql):
         return await self(func)()
 
     @overload
-    def __call__(self, func: Callable[P, Coroutine[Any, Any, M]]) -> Callable[P, Coroutine[Any, Any, M | None]]:
-        ...
+    def __call__(self, func: Callable[P, Coroutine[Any, Any, M]]) -> Callable[P, Coroutine[Any, Any, M | None]]: ...
 
     @overload
     def __call__(
-            self, func: Callable[P, Coroutine[Any, Any, list[M]]]
-    ) -> Callable[P, Coroutine[Any, Any, list[M]]]:
-        ...
+        self, func: Callable[P, Coroutine[Any, Any, list[M]]]
+    ) -> Callable[P, Coroutine[Any, Any, list[M]]]: ...
 
     @overload
     def __call__(
-            self, func: Callable[P, Coroutine[Any, Any, None | list[dict]]]
-    ) -> Callable[P, Coroutine[Any, Any, list[dict]]]:
-        ...
+        self, func: Callable[P, Coroutine[Any, Any, None | list[dict]]]
+    ) -> Callable[P, Coroutine[Any, Any, list[dict]]]: ...
 
     def __call__(
-            self,
-            func: Callable[P, Coroutine[Any, Any, M | list[M] | list[dict] | None]] | None,
+        self,
+        func: Callable[P, Coroutine[Any, Any, M | list[M] | list[dict] | None]] | None,
     ) -> Callable[P, Coroutine[Any, Any, M | list[M] | list[dict] | None]]:
         anno = func.__annotations__.get('return')
         super_class = super()

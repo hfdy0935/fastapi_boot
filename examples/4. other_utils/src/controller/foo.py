@@ -3,7 +3,23 @@ from functools import lru_cache
 import time
 from typing import Any, Callable, Coroutine
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket
-from fastapi_boot.core import Controller, use_http_middleware, Get, use_ws_middleware, WS, Prefix, Post, Bean, HTTPMiddleware, ExceptionHandler, use_dep, Lifespan, Lazy, Inject
+from fastapi_boot.core import (
+    Controller,
+    use_http_middleware,
+    Get,
+    use_ws_middleware,
+    WS,
+    Prefix,
+    Post,
+    Bean,
+    inject_app,
+    HTTPMiddleware,
+    ExceptionHandler,
+    use_dep,
+    Lifespan,
+    Lazy,
+    Inject,
+)
 
 
 # ---------------------------------------------------- middleware ---------------------------------------------------- #
@@ -34,6 +50,7 @@ async def mid4(request: Request, call_next: Callable[[Request], Coroutine]):
     print('after mid4')
     return resp
 
+
 # ------------------------------------------------- ExceptionHandler ------------------------------------------------- #
 
 
@@ -46,20 +63,13 @@ class GuessException(Exception):
 @ExceptionHandler(GuessException)
 async def handle_exp_1(request: Request, exp: GuessException):
     print('guess exception 501')
-    return {
-        **asdict(exp),
-        'time': time.ctime()
-    }
+    return {**asdict(exp), 'time': time.ctime()}
 
 
 @ExceptionHandler(501)
 async def handle_exp_2(request: Request, exp: HTTPException):
     print('guess exception 502')
-    return {
-        'status': exp.status_code,
-        'msg': exp.detail,
-        'time': time.ctime()
-    }
+    return {'status': exp.status_code, 'msg': exp.detail, 'time': time.ctime()}
 
 
 def guess_dep(p: int = Query()):
@@ -72,6 +82,7 @@ def guess_dep(p: int = Query()):
 class DBData:
     conn: Any = None
     db_info: str = ''
+
 
 # ---------------------------------------------------- Controller ---------------------------------------------------- #
 
@@ -99,7 +110,7 @@ class _:
             return True
 
     @Prefix('/ws')
-    class ws: # frontend: resource/single-websocket.html
+    class ws:  # frontend: resource/single-websocket.html
         # default False, any message avent can emit `mid3`. If True, only message event will emit `mid3`
         # only has effect to websocket
         _ = use_ws_middleware(mid3, only_message=True)
@@ -124,11 +135,7 @@ class _:
         def f(self, p: int = Query(description='guess a number')):
             if p < 10:
                 raise GuessException(600, 'too small')
-            return dict(
-                code=200,
-                msg='success',
-                data=p
-            )
+            return dict(code=200, msg='success', data=p)
 
     @Prefix('/lifespan-bean')
     class LefespaBean:
@@ -142,21 +149,18 @@ class _:
 
         @Get('query-db', response_model=dict)
         def f(self):
-            result = self.db_data.db_info+' query result'
+            result = self.db_data.db_info + ' query result'
             assert self.db_data == self.db_data1
-            return dict(
-                code=200,
-                msg='success',
-                data=result
-            )
+            return dict(code=200, msg='success', data=result)
 
 
 @HTTPMiddleware  # global http middleware, after Controller
-async def mid5(request: Request, call_next: Callable[[Request], Coroutine]):
-    print('before mid5')
-    resp = await call_next(request)
-    print('after mid5')
-    return resp
+class Mid5Middleware:
+    async def dispatch(self, request: Request, call_next: Callable):
+        print('before mid5')
+        res = await call_next(request)
+        print('after mid5')
+        return res
 
 
 # ---------------------------------------------------- Lifespan ---------------------------------------------------- #
@@ -171,6 +175,7 @@ class DB:
 
 @Lifespan
 async def lifespan(app: FastAPI):
+    assert app == inject_app()
 
     db = DB()
     await db.connect(app)
@@ -179,6 +184,11 @@ async def lifespan(app: FastAPI):
     @Bean
     def f() -> DBData:
         return db.some_data
+
     yield
     await db.disconnect()
 
+
+@inject_app().post('/inject-app-router', tags=['6. other decorators'])
+async def inject_app_router():
+    return 'ok'

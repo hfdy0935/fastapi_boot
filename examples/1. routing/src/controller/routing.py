@@ -1,5 +1,5 @@
 import logging
-from fastapi import BackgroundTasks,  Response, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, Response, WebSocket, WebSocketDisconnect
 from fastapi_boot.core import Controller, Get, Post, Put, Delete, Head, Options, Patch, Req, Trace, WS, Prefix
 from pydantic import BaseModel
 
