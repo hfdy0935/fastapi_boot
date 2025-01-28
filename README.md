@@ -80,6 +80,11 @@ if __name__ == '__main__':
     uvicorn.run('main:app', reload=True)
 ```
 
+or use cli:
+```bash
+fastapi-boot --host=localhost --port=8000 --reload --name=Demo
+```
+It will generate a simple project with FastAPI instance and `DemoController`
 
 
 # Default dir
@@ -254,7 +259,7 @@ import uvicorn
 app = FastAPI()
 provide_app(app)
 
-# prevent auto include to app, default dep_name is decorated class's name or decorated functon's name
+# prevent auto include to app, default dep_name is decorated class's name or decorated function's name
 @Controller('/foo', auto_include=False)
 class FooController:
     @Get()
@@ -465,7 +470,11 @@ class LefespaDemoController:
             data=result
         )
 
-app = inject_app() # FastAPI instance when scanning the current file.
+app = inject_app() # current FastAPI instance
+
+@inject_app().get('/inject-app')
+def _():
+    return 'ok'
 ```
 
 

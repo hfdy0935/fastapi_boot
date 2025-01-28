@@ -1,6 +1,6 @@
 from typing import Generic, TypeVar
 
-from fastapi_boot.core.model import AppNotFoundException, AppRecord, DependencyDuplicatedException
+from .model import AppNotFoundException, AppRecord, DependencyDuplicatedException
 
 T = TypeVar('T')
 

@@ -18,15 +18,15 @@ from starlette.middleware import _MiddlewareFactory
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from fastapi.responses import JSONResponse
-from fastapi_boot.core.const import (
+from .const import (
     REQ_DEP_PLACEHOLDER,
     USE_MIDDLEWARE_FIELD_PLACEHOLDER,
     BlankPlaceholder,
     app_store,
     dep_store,
 )
-from fastapi_boot.core.model import AppRecord, UseMiddlewareRecord
-from fastapi_boot.core.util import get_call_filename
+from .model import AppRecord, UseMiddlewareRecord
+from .util import get_call_filename
 
 T = TypeVar('T')
 
