@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Document</title>
+        <style>
+            fieldset {
+                width: 400px;
+                height: 100px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                border-radius: 5px;
+                margin: 20px;
+            }
+            button {
+                margin: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <fieldset>
+            <legend>single websocket demo</legend>
+            <label>
+                <input type="text" />
+            </label>
+            <button>send</button>
+        </fieldset>
+    </body>
+    <script>
+        const input = document.querySelector('input');
+        const sendBtn = document.querySelector('button');
+        const websocket = new WebSocket('ws://localhost:8000/otehr-decorators/ws');
+        websocket.onopen = () => {
+            console.log('websocket connected...');
+        };
+        websocket.onmessage = e => {
+            console.log(`receive message from server: ${e.data}`);
+        };
+        websocket.onerror = e => {
+            console.error(e);
+        };
+        websocket.onclose = () => {
+            console.log('websocket disconnected');
+        };
+        sendBtn.addEventListener('click', e => {
+            if (!input.value.trim()) return;
+            websocket.send(
+                JSON.stringify({
+                    input: input.value,
+                    time: Date.now()
+                })
+            );
+            input.value = '';
+        });
+    </script>
+</html>
