@@ -508,12 +508,19 @@ async def get_by_id1(user_id:str):
 @Repository
 class _:
     NORMAL = 'normal'
+    
     @Select('select id,username,age,gender,address from {user} where id={user_id} and statis={self.NORMAL}').fill(user=UserEntity.Meta.table)
     async def get_normal_user_by_id(self, user_id: str) -> UserInfoVO: ...
 
     async def get_by_id1(self, user_id:str):
         return await Select('select id,username,age,gender,address from {user} where id={user_id}').fill(user=UserEntity.Meta.table, user_id=user_id).execute(UserInfoVO)
 
+# or decorate function
+@Select('select id,username,age,gender,address from {user} where id={user_id}').fill(user=UserEntity.Meta.table, user_id=user_id)
+async def get_by_id2(user_id:str) -> UserInfoVO:...
+# another way
+async def get_by_id3(user_id:str):
+    return await Select('select id,username,age,gender,address from {user} where id={user_id}').fill(user=UserEntity.Meta.table, user_id=user_id).execute(UserInfoVO)
 ```
 
 - Others
