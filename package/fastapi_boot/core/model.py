@@ -3,8 +3,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from functools import wraps
 from http import HTTPMethod
-from inspect import signature
-from typing import Any, Generic, Literal, Self, TypeVar, runtime_checkable
+from typing import Any, Generic, Literal, Self, TypeVar
 
 from fastapi import APIRouter, FastAPI, Response, Request, WebSocket
 from fastapi.datastructures import Default
