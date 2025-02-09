@@ -191,17 +191,17 @@ def HTTPMiddleware(dispatch: DispatchFunc | type[DispatchCls]):
         print("after")
         return res
 
-        @HTTPMiddleware
-        class FooMiddleware:
-            async def foo(self, a: int):
-                return a
+    @HTTPMiddleware
+    class FooMiddleware:
+        async def foo(self, a: int):
+            return a
 
-            async def dispatch(self, request: Request, call_next: Callable):
-                print('before')
-                res = await call_next(request)
-                print('after')
-                print(await self.foo(1))
-                return res
+        async def dispatch(self, request: Request, call_next: Callable):
+            print('before')
+            res = await call_next(request)
+            print('after')
+            print(await self.foo(1))
+            return res
     ```
     """
     app = app_store.get_or_raise(get_call_filename()).app
@@ -269,7 +269,7 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
             try:
                 future.result()
             except Exception as e:
-                executor.shutdown(True,cancel_futures=True)
+                executor.shutdown(True, cancel_futures=True)
                 raise e
     return app
 
@@ -291,7 +291,7 @@ def Lifespan(func: Callable[[FastAPI], AsyncGenerator[None, None]]):
     ```
     """
     app_store.get_or_raise(get_call_filename()
-                  ).app.router.lifespan_context = asynccontextmanager(func)
+                           ).app.router.lifespan_context = asynccontextmanager(func)
     return func
 
 
@@ -343,7 +343,7 @@ def ExceptionHandler(exp: int | type[E]):
                 return Response(resp)
 
         app_store.get_or_raise(get_call_filename()
-                      ).app.add_exception_handler(exp, wrapper)
+                               ).app.add_exception_handler(exp, wrapper)
         return handler
 
     return decorator

@@ -28,7 +28,7 @@ def _inject(app_record: AppRecord, tp: type[T], name: str | None) -> T:
     while True:
         if res := dep_store.inject_dep(tp, name):
             return res
-        # time.sleep(app_record.inject_retry_step)
+        time.sleep(app_record.inject_retry_step)
         if time.time() - start > app_record.inject_timeout:
             name_info = f"with name '{name}'" if name is not None else ''
             raise DependencyNotFoundException(
