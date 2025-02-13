@@ -100,7 +100,6 @@ def trans_endpoint(
         params.append(Parameter(
             name=req_name, kind=Parameter.KEYWORD_ONLY, annotation=v[0], default=v[1]))
     # replace endpoint
-
     @wraps(endpoint)
     async def new_endpoint(*args, **kwargs):
         for k, v in use_dep_dict.items():

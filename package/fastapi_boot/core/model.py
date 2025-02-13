@@ -188,6 +188,11 @@ class AppRecord:
     inject_timeout: float
     inject_retry_step: float
 
+    def fill_props_and_replace(self, app: FastAPI):
+        vars(app).update(vars(self.app))
+        self.app = app
+        return app
+
 
 @dataclass
 class UseMiddlewareRecord:

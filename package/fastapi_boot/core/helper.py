@@ -8,7 +8,6 @@ import os
 from collections.abc import Callable, Coroutine
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
-import sys
 from typing import Any, Protocol, TypeVar, cast, ParamSpec
 from inspect import isclass, iscoroutinefunction
 from pydantic import BaseModel
@@ -226,11 +225,13 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
     Returns:
         _type_: original app
     """
+    provide_filepath = get_call_filename()
+    # use cache
+    if app_record := app_store.get_or_none(provide_filepath):
+        return app_record.fill_props_and_replace(app)
     # clear store before init
     app_store.clear()
     dep_store.clear()
-
-    provide_filepath = get_call_filename()
     # the file which provides app
     app_root_dir = os.path.dirname(provide_filepath)
     app_record = AppRecord(app, inject_timeout, inject_retry_step)
@@ -255,9 +256,6 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
                     app_root_dir, '')).parts[1:]
             )
             dot_paths.append(dot_path)
-            # clear module cache if exists
-            if dot_path in sys.modules:
-                sys.modules.pop(dot_path)
     futures: list[Future] = []
     with ThreadPoolExecutor(max_workers) as executor:
         for dot_path in dot_paths:
