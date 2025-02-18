@@ -86,15 +86,15 @@ def collect_bean(app_record: AppRecord, func: Callable, name: str | None = None)
 
 
 @overload
-def Bean(value: str): ...
+def Bean(func_or_name: str): ...
 
 
 @overload
-def Bean(value: Callable[..., T]): ...
+def Bean(func_or_name: Callable[..., T]): ...
 
 
 @no_type_check
-def Bean(value: str | Callable[..., T]) -> Callable[..., T]:
+def Bean(func_or_name: str | Callable[..., T]) -> Callable[..., T]:
     """A decorator, will collect the return value of the func decorated by Bean
     # Example
     1. collect by `type`
@@ -125,15 +125,13 @@ def Bean(value: str | Callable[..., T]) -> Callable[..., T]:
     """
     app_record = app_store.get_or_raise(get_call_filename())
 
-    if callable(value):
-        collect_bean(app_record, value)
-        return value
+    if callable(func_or_name):
+        collect_bean(app_record, func_or_name)
+        return func_or_name
     else:
-
-        def wrapper(func: Callable[..., T]) -> Callable[..., T]:
-            collect_bean(app_record, func, value)
+        def wrapper(func: Callable[..., T]):
+            collect_bean(app_record, func, func_or_name)
             return func
-
         return wrapper
 
 
@@ -157,15 +155,15 @@ def collect_dep(app_record: AppRecord, cls: type, name: str | None = None):
 
 
 @overload
-def Injectable(value: str): ...
+def Injectable(class_or_name: str): ...
 
 
 @overload
-def Injectable(value: type[T]): ...
+def Injectable(class_or_name: type[T]): ...
 
 
 @no_type_check
-def Injectable(value: str | type[T]) -> type[T]:
+def Injectable(class_or_name: str | type[T]) -> type[T]:
     """decorate a class and collect it's instance as a dependency
     # Example
     ```python
@@ -178,13 +176,13 @@ def Injectable(value: str | type[T]) -> type[T]:
 
     """
     app_record = app_store.get_or_raise((get_call_filename()))
-    if isclass(value):
-        collect_dep(app_record, value)
-        return value
+    if isclass(class_or_name):
+        collect_dep(app_record, class_or_name)
+        return class_or_name
     else:
 
         def wrapper(cls: type[T]):
-            collect_dep(app_record, cls, value)
+            collect_dep(app_record, cls, class_or_name)
             return cls
 
         return wrapper
@@ -257,11 +255,8 @@ class Inject(Generic[T], metaclass=AtUsable):
         return res
 
     @classmethod
-    def Qualifier(cls, name: str) -> type['Inject']:
+    def Qualifier(cls, name: str):
         """Inject.Qualifier(name)"""
         filename = get_call_filename()
-
-        class Cls(cls):
-            latest_named_deps_record: dict[str, str] = {filename: name}
-
-        return Cls
+        cls.latest_named_deps_record.update({filename: name})
+        return cls

@@ -1,6 +1,6 @@
 import logging
-from fastapi import BackgroundTasks, Query, Response, WebSocket, WebSocketDisconnect
-from fastapi_boot.core import Controller, Get, Post, Put, Delete, Head, Options, Patch, Req, Trace, WS, Prefix
+from fastapi import BackgroundTasks, Query, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi_boot.core import Controller, Get, Post, Put, Delete, Head, Options, Patch, Req, Trace, WS, Prefix, use_dep
 from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO)
@@ -14,6 +14,7 @@ async def h1():
 @Req('/h2', tags=['1. Request methods'])
 async def h2():
     return 'hello world'
+
 
 @WS('/ws-fbv')
 async def ws(websocket: WebSocket):
@@ -31,10 +32,19 @@ async def ws(websocket: WebSocket):
         logging.warning('websocket disconnected')
 
 
+def use_ua(request: Request):
+    return request.headers.get('User-Agent')
+
+
+class BaseController:
+    ua = use_dep(use_ua)
+
+
 @Controller('/request-methods', tags=['1. Request methods'])
-class RequestMethodController:
+class RequestMethodController(BaseController):
     @Req('/req')
     def req(self):
+        print(self.ua)
         return 'req default get'
 
     @Req('/req', methods=['POST'])
@@ -73,20 +83,22 @@ class RequestMethodController:
     def patch(self):
         return 'patch'
 
-    @WS()
-    async def ws(self, websocket: WebSocket):
-        """
-        visit `./single-websocket.html` to use frontend
-        """
-        try:
-            await websocket.accept()
-            logging.info('websocket connected...')
-            while True:
-                data = await websocket.receive_json()
-                logging.info(f'receive client message: {data}')
-                await websocket.send_json(data)
-        except WebSocketDisconnect:
-            logging.warning('websocket disconnected')
+    @Prefix()
+    class WebSocketController:
+        @WS()
+        async def ws(self, websocket: WebSocket):
+            """
+            visit `./single-websocket.html` to use frontend
+            """
+            try:
+                await websocket.accept()
+                logging.info('websocket connected...')
+                while True:
+                    data = await websocket.receive_json()
+                    logging.info(f'receive client message: {data}')
+                    await websocket.send_json(data)
+            except WebSocketDisconnect:
+                logging.warning('websocket disconnected')
 
 
 class MessageDTO(BaseModel):

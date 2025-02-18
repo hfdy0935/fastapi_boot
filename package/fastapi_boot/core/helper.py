@@ -245,10 +245,8 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
     dot_paths = []
     for root, _, files in os.walk(app_root_dir):
         for file in files:
-            if not file.endswith('.py'):
-                continue
             fullpath = os.path.join(root, file)
-            if fullpath == provide_filepath:
+            if not file.endswith('.py') or fullpath == provide_filepath:
                 continue
             dot_path = '.'.join(
                 prefix_parts +
@@ -288,8 +286,8 @@ def Lifespan(func: Callable[[FastAPI], AsyncGenerator[None, None]]):
         # close db
     ```
     """
-    app_store.get_or_raise(get_call_filename()
-                           ).app.router.lifespan_context = asynccontextmanager(func)
+    app_store.get_or_raise(
+        get_call_filename()).app.router.lifespan_context = asynccontextmanager(func)
     return func
 
 

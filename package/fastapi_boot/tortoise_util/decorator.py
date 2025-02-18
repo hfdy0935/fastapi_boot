@@ -1,4 +1,4 @@
-from collections.abc import Callable, Coroutine, Sequence
+from collections.abc import Callable, Coroutine, Mapping, Sequence
 from functools import partial, wraps
 from inspect import signature
 import inspect
@@ -58,9 +58,10 @@ def parse_execute_res(target: dict):
     return {k: parse_item(v) for k, v in target.items()}
 
 
-def repl_fill_params(match,kwds:dict)->str:
+def repl_fill_params(match, kwds: dict) -> str:
     name = match.group(1)
     return str(kwds[name]) if name in kwds else match.group(0)
+
 
 PM = TypeVar('PM', bound=BaseModel)
 TM = TypeVar('TM', bound=Model)
@@ -90,14 +91,15 @@ class Sql:
 
     def __init__(self, sql: str, connection_name: str = 'default'):
         self.sql = sql
-        self.connection_name=connection_name
-        self.formatted=False
-        self.sql_pres_param_names=[]
-        self.pattern=re.compile(r'\{\s*(.*?)\s*\}')
+        self.connection_name = connection_name
+        self.formatted = False
+        self.sql_pres_param_names = []
+        self.pattern = re.compile(r'\{\s*(.*?)\s*\}')
 
     @property
     def is_sqlite(self):
         return get_is_sqlite(self.connection_name)
+
     @property
     def placeholder(self):
         return '?' if self.is_sqlite else '%s'
@@ -123,11 +125,12 @@ class Sql:
                   'id': '3', 'name': 'baz', 'age': 22, 'status': 1}])
 
         """
-        # params = {
-        #     i[1]: '{'+i[1]+'}' for i in list(Formatter().parse(self.sql)) if i[1] is not None}
-        # self.sql = self.sql.format_map({**params, **kwds})
-        self.sql=self.pattern.sub(partial(repl_fill_params,kwds=kwds),self.sql)
+        self.sql = self.pattern.sub(
+            partial(repl_fill_params, kwds=kwds), self.sql)
         return self
+
+    def fill_map(self, map: Mapping):
+        return self.fill(**map)
 
     async def execute(self) -> tuple[int, list[dict[Any, Any]]]:
         """execute sql, not as a decorator
@@ -144,9 +147,11 @@ class Sql:
         self, func: Callable[P, Coroutine[Any, Any, None | tuple[int, list[dict]]]]
     ) -> Callable[P, Coroutine[Any, Any, tuple[int, list[dict]]]]:
         if not self.formatted:
-            self.sql_pres_param_names=self.pattern.findall(self.sql)
-            self.sql=self.sql.format_map({k:self.placeholder for k in self.sql_pres_param_names})
-            self.formatted=True
+            self.sql_pres_param_names = self.pattern.findall(self.sql)
+            self.sql = self.sql.format_map(
+                {k: self.placeholder for k in self.sql_pres_param_names})
+            self.formatted = True
+
         @wraps(func)
         async def wrapper(*args: P.args, **kwds: P.kwargs):
             func_params_dict = get_func_params_dict(func, *args, **kwds)
@@ -208,17 +213,17 @@ class Select(Sql):
 
     """
 
-    @ overload
+    @overload
     async def execute(self, expect: type[PM]) -> PM | None: ...
-    @ overload
+    @overload
     async def execute(self, expect: type[TM]) -> TM | None: ...
 
-    @ overload
+    @overload
     async def execute(self, expect: type[Sequence[PM]]) -> list[PM]: ...
-    @ overload
+    @overload
     async def execute(self, expect: type[Sequence[TM]]) -> list[TM]: ...
 
-    @ overload
+    @overload
     async def execute(self, expect: None |
                       type[Sequence[dict]] = None) -> list[dict]: ...
 
@@ -230,23 +235,23 @@ class Select(Sql):
         setattr(func, '__annotations__', {'return': expect})
         return await self(func)()
 
-    @ overload
+    @overload
     def __call__(self, func: Callable[P, Coroutine[Any, Any, PM]]) -> Callable[P,
                                                                                Coroutine[Any, Any, PM | None]]: ...
 
-    @ overload
+    @overload
     def __call__(self, func: Callable[P, Coroutine[Any, Any, TM]]) -> Callable[P,
                                                                                Coroutine[Any, Any, TM | None]]: ...
 
-    @ overload
+    @overload
     def __call__(self, func: Callable[P, Coroutine[Any, Any, list[PM]]]) -> Callable[P,
                                                                                      Coroutine[Any, Any, list[PM]]]: ...
 
-    @ overload
+    @overload
     def __call__(self, func: Callable[P, Coroutine[Any, Any, list[TM]]]) -> Callable[P,
                                                                                      Coroutine[Any, Any, list[TM]]]: ...
 
-    @ overload
+    @overload
     def __call__(
         self, func: Callable[P, Coroutine[Any, Any, None | list[dict]]]
     ) -> Callable[P, Coroutine[Any, Any, list[dict]]]: ...
@@ -258,9 +263,10 @@ class Select(Sql):
         anno = func.__annotations__.get('return')
         super_class = super()
 
-        @ wraps(func)  # type: ignore
+        @wraps(func)  # type: ignore
         async def wrapper(*args: P.args, **kwds: P.kwargs):
-            lines, resp = await super_class.__call__(func)(*args, **kwds) # type: ignore
+            # type: ignore
+            lines, resp = await super_class.__call__(func)(*args, **kwds)
             if anno is None:
                 return resp
             elif get_origin(anno) is list:
@@ -319,9 +325,10 @@ class Insert(Sql):
     def __call__(self, func: Callable[P, Coroutine[Any, Any, None | int]]) -> Callable[P, Coroutine[Any, Any, int]]:
         super_class = super()
 
-        @ wraps(func)
+        @wraps(func)
         async def wrapper(*args: P.args, **kwds: P.kwargs) -> int:
-            return (await super_class.__call__(func)(*args, **kwds))[0] # type: ignore
+            # type: ignore
+            return (await super_class.__call__(func)(*args, **kwds))[0]
 
         return wrapper
 

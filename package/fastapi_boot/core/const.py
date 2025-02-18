@@ -1,4 +1,6 @@
+from dataclasses import dataclass, field
 import threading
+from threading import Lock
 from typing import Generic, TypeVar
 
 
@@ -23,16 +25,17 @@ USE_MIDDLEWARE_FIELD_PLACEHOLDER = 'fastapi_boot__use_middleware_field_placehold
 class BlankPlaceholder:
     ...
 
-
 # ------------------------------------------------------- store ------------------------------------------------------ #
-class DependencyStore(Generic[T]):
-    def __init__(self):
-        # {type: instance}
-        self.type_deps: dict[type[T], T] = {}
-        # {type: {name: instance}}
-        self.name_deps: dict[type[T], dict[str, T]] = {}
-        # thread lock
-        self.lock = threading.Lock()
+
+
+@dataclass
+class DepStore(Generic[T]):
+    # {type: instance}
+    type_deps: dict[type[T], T] = field(default_factory=dict)
+    # {type: {name: instance}}
+    name_deps: dict[type[T], dict[str, T]] = field(default_factory=dict)
+    # thread lock
+    lock: Lock = field(default_factory=threading.Lock)
 
     def add_dep_by_type(self, tp: type[T], ins: T):
         if tp in self.type_deps:
@@ -67,10 +70,10 @@ class DependencyStore(Generic[T]):
         self.name_deps.clear()
 
 
+@dataclass
 class AppStore(Generic[T]):
-    def __init__(self):
-        self.app_dic: dict[str, AppRecord] = {}
-        self.lock = threading.Lock()
+    app_dic: dict[str, AppRecord] = field(default_factory=dict)
+    lock: Lock = field(default_factory=threading.Lock)
 
     def add(self, path: str, app_record: AppRecord):
         with self.lock:
@@ -91,5 +94,5 @@ class AppStore(Generic[T]):
         self.app_dic.clear()
 
 
-dep_store = DependencyStore()
+dep_store = DepStore()
 app_store = AppStore()

@@ -1,7 +1,7 @@
 from collections.abc import Callable, Sequence
 from enum import Enum
 from functools import reduce, wraps
-from inspect import Parameter, iscoroutinefunction, signature
+from inspect import Parameter, getmembers, iscoroutinefunction, signature
 from typing import Any, Generic, TypeVar
 
 from fastapi import APIRouter, Response, params, WebSocket as FastAPIWebSocket
@@ -54,12 +54,11 @@ def trans_path(path: str) -> str:
 
 # ---------------------------------------------------- Controller ---------------------------------------------------- #
 
-
-def get_use_dep_result(cls: type[T]):
+def get_use_result(cls: type[T]):
     use_dep_dict = {}
     cls_anno: dict = cls.__dict__.get('__annotations__', {})
     use_middleware_records: list[UseMiddlewareRecord] = []
-    for k, v in cls.__dict__.items():
+    for k, v in getmembers(cls):
         # use_dep
         if hasattr(v, REQ_DEP_PLACEHOLDER):
             use_dep_dict.update({k: (cls_anno.get(k), v)})
@@ -100,6 +99,7 @@ def trans_endpoint(
         params.append(Parameter(
             name=req_name, kind=Parameter.KEYWORD_ONLY, annotation=v[0], default=v[1]))
     # replace endpoint
+
     @wraps(endpoint)
     async def new_endpoint(*args, **kwargs):
         for k, v in use_dep_dict.items():
@@ -160,7 +160,7 @@ def resolve_class_based_view(
         app_record (AppRecord): app record
     """
     cls: type[T] = route_record.cls
-    use_deps_dict, use_middleware_records = get_use_dep_result(cls)
+    use_deps_dict, use_middleware_records = get_use_result(cls)
     instance: T = inject_init_deps_and_get_instance(app_record, cls)
 
     for v in cls.__dict__.values():
@@ -200,8 +200,9 @@ class Controller(APIRouter, Generic[T]):
             include_in_schema: bool = True,
             generate_unique_id_function: Callable[[
                 APIRoute], str] = Default(generate_unique_id),
+            # if True, the controller will be mounted to FastAPI instance provided by `provide_app` function automatically, else the controller will be provided by `APIRouter` instance.
             auto_include: bool = True,
-            # will be collected by type `APIRouetr` with name decorated class's name if dep_name is None else by type `APIRouetr` with name
+            # if None, the `APIRouter` instance will be collected by type `APIRouter` and name decorated class's name, else dep_name.
             dep_name: str | None = None
     ):
         self.prefix = trans_path(prefix)
@@ -232,9 +233,9 @@ class Controller(APIRouter, Generic[T]):
         resolve_class_based_view(self, PrefixRouteRecord(cls), '', app_record)
         if self.auto_include:
             app_record.app.include_router(self)
-        # collect controller as name dep with type 'APIRouter'
-        dep_store.add_dep(
-            APIRouter, cls.__name__ if self.dep_name is None else self.dep_name, self)
+        else:
+            dep_store.add_dep(
+                APIRouter, cls.__name__ if self.dep_name is None else self.dep_name, self)
         return cls
 
     def __getattribute__(self, k: str):
@@ -256,12 +257,11 @@ class Controller(APIRouter, Generic[T]):
                     if self.auto_include:
                         app_store.get_or_raise(get_call_filename()
                                                ).app.include_router(self)
-                    dep_store.add_dep(
-                        APIRouter, self.dep_name or endpoint.__name__, self)
+                    else:
+                        dep_store.add_dep(
+                            APIRouter, self.dep_name or endpoint.__name__, self)
                     return endpoint
-
                 return wrapper
-
             return decorator
         return attr
 
@@ -275,6 +275,7 @@ class Req(BaseHttpRouteItemWithoutEndpoint):
     |                     function                       |         FastAPI instance        |
     | method of class instance、classmethod、staticmethod | APIRouter instance of Controller|
     """
+
     def __call__(self, endpoint: T) -> T:
         route_item = BaseHttpRouteItem(
             endpoint=endpoint, **self.dict).format_methods()
