@@ -178,7 +178,7 @@ def resolve_class_based_view(
     return instance
 
 
-class Controller(APIRouter, Generic[T]):
+class Controller(APIRouter):
     def __init__(
             self,
             prefix: str = "",

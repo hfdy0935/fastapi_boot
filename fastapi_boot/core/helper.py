@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterable
 import concurrent
 import concurrent.futures
 from contextlib import asynccontextmanager
@@ -213,7 +213,7 @@ def HTTPMiddleware(dispatch: DispatchFunc | type[DispatchCls]):
 
 
 def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
-                inject_retry_step: float = 0.05) -> FastAPI:
+                inject_retry_step: float = 0.05, exclude_scan_paths: Iterable[str] = []) -> FastAPI:
     """enable scan project to collect dependencies which can't been collected automatically
 
     Args:
@@ -221,7 +221,7 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
         max_workers (int, optional): workers' num to scan project. Defaults to 20.
         inject_timeout (float, optional): will raise DependencyNotFoundException if time > inject_timeout. Defaults to 20.
         inject_pause_step (float, optional): Retry interval after failing to find a dependency . Defaults to 0.05.
-
+        exclude_scan_paths (Iterable[str], optional): exclude paths to scan. Defaults to [].
     Returns:
         _type_: original app
     """
@@ -253,6 +253,8 @@ def provide_app(app: FastAPI, max_workers: int = 20, inject_timeout: float = 20,
                 Path(fullpath.replace('.py', '').replace(
                     app_root_dir, '')).parts[1:]
             )
+            if any(dot_path.startswith(p) for p in exclude_scan_paths):
+                continue
             dot_paths.append(dot_path)
     futures: list[Future] = []
     with ThreadPoolExecutor(max_workers) as executor:
