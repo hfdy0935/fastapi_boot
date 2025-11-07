@@ -216,12 +216,14 @@ def provide_app(app: FastAPI = FastAPI(), beans: Sequence[Any] = [], controllers
 
     Args:
         app (FastAPI): FastAPI instance
-        beans (list[Any]): beans to provide
+        beans (list[Any]): beans
         controllers
     Returns:
         _type_: original app
     """
     provide_filepath = get_call_filename()
+    if cur_app:=app_store.get_or_none(provide_filepath):
+        return cur_app.assign_to(app)
     # app record
     app_record = AppRecord(app)
     app_store.add(os.path.dirname(provide_filepath), app_record)

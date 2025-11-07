@@ -125,6 +125,7 @@ class Sql:
                   'id': '3', 'name': 'baz', 'age': 22, 'status': 1}])
 
         """
+        kwds={k:f'"{v}"' if type(v) is str else v for k,v in kwds.items()}
         self.sql = self.pattern.sub(
             partial(repl_fill_params, kwds=kwds), self.sql)
         return self
@@ -147,11 +148,15 @@ class Sql:
         self, func: Callable[P, Coroutine[Any, Any, None | tuple[int, list[dict]]]]
     ) -> Callable[P, Coroutine[Any, Any, tuple[int, list[dict]]]]:
         if not self.formatted:
-            self.sql_pres_param_names = self.pattern.findall(self.sql)
-            self.sql = self.sql.format_map(
-                {k: self.placeholder for k in self.sql_pres_param_names})
             self.formatted = True
-
+            sql_list = list(self.sql)
+            matches = list(self.pattern.finditer(self.sql))[::-1]
+            for m in matches:
+                self.sql_pres_param_names.append(m.group()[1:-1])
+                sql_list[m.start():m.end()]=self.placeholder
+            self.sql=''.join(sql_list)
+            self.sql_pres_param_names=self.sql_pres_param_names[::-1]
+        
         @wraps(func)
         async def wrapper(*args: P.args, **kwds: P.kwargs):
             func_params_dict = get_func_params_dict(func, *args, **kwds)
